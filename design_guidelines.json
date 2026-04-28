@@ -1,0 +1,97 @@
+{
+  "project_name": "MediConsult",
+  "theme": "LIGHT",
+  "archetype": "1 (Organic & Earthy)",
+  "rationale": "Patients need warmth, calm, and trust when dealing with health. A dark UI feels too clinical and cold. The organic & earthy palette instills groundedness and professionalism without triggering anxiety.",
+  "colors": {
+    "background_base": "#F9F9F6",
+    "surface": "#FFFFFF",
+    "primary": "#2C5545",
+    "primary_hover": "#3D6E5C",
+    "secondary": "#8A9A86",
+    "secondary_hover": "#A1B09D",
+    "accent_warning": "#D9734E",
+    "text_primary": "#1A2421",
+    "text_secondary": "#5C6B64",
+    "border_subtle": "#E2E8E4",
+    "border_focus": "#8A9A86"
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Manrope",
+    "import_url": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Outfit:wght@300;400;600;700&display=swap",
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none text-text_primary font-heading",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight leading-tight text-text_primary font-heading",
+      "h3": "text-xl sm:text-2xl leading-snug text-text_primary font-heading",
+      "h4": "text-lg sm:text-xl font-medium text-text_primary font-heading",
+      "body": "text-base text-text_secondary leading-relaxed font-body",
+      "small_label": "text-sm uppercase tracking-[0.2em] font-medium text-secondary font-body"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing (2-3x typical). Use p-8, p-12, p-24 for marketing sections to let content breathe.",
+    "landing_page_grid": "Mode A: The Tetris Grid (Asymmetric). grid-cols-1 md:grid-cols-8 lg:grid-cols-12 with wide gaps (gap-8 to gap-12).",
+    "dashboard_grid": "Mode B: The Control Room Grid. grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with tight gaps (gap-4 or gap-6).",
+    "cards_and_surfaces": {
+      "marketing_cards": "Flat background with 1px subtle border (#E2E8E4) and generous padding (p-8).",
+      "dashboard_widgets": "Cardless or flat solid surface (bg-white) with 1px border (#E2E8E4). Max 8px border-radius (rounded-lg).",
+      "header_nav": "Crystal Glassmorphism if floating: backdrop-blur-xl bg-white/70 border-b border-white/40."
+    }
+  },
+  "components_strategy": {
+    "marketing": "Pure HTML + Tailwind CSS. Avoid rigid Shadcn wrappers for layout. Use custom HTML for bento grids.",
+    "dashboard_and_booking": "Use Shadcn components heavily customized to match the Organic & Earthy theme (remove Vercel-look, adjust radii and borders). Use Shadcn Calendar for date selection, Select for dropdowns.",
+    "buttons": "Primary buttons: bg-primary text-white rounded-full px-6 py-3 hover:bg-primary_hover transition-colors. Secondary buttons: bg-surface text-primary border border-primary hover:bg-background_base.",
+    "charts": "Use Shadcn charts (Recharts) with deep green (#2C5545) and sage (#8A9A86) accents."
+  },
+  "motion_and_interactions": {
+    "hover_states": "All interactive elements must change state. Buttons: subtle lift (-translate-y-0.5) and color change.",
+    "transitions": "Use specific properties: transition: transform 0.2s ease, opacity 0.2s ease.",
+    "focus": "focus:ring-2 focus:ring-border_focus focus:outline-none focus:ring-offset-2"
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Use regular weight, stroke-width 1.5. Clean and legible."
+  },
+  "media_and_images": {
+    "hero_background": {
+      "url": "https://images.pexels.com/photos/33812025/pexels-photo-33812025.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Warm and inviting medical center reception showcasing contemporary design with wood panel accents.",
+      "usage": "Landing page hero section background. MUST have an overlay of bg-white/40 to ensure text contrast."
+    },
+    "feature_image_1": {
+      "url": "https://images.pexels.com/photos/7579831/pexels-photo-7579831.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "A doctor and patient engaging in a positive consultation in a bright clinic setting.",
+      "usage": "About Us or How It Works section."
+    },
+    "testimonial_doctor_1": {
+      "url": "https://images.pexels.com/photos/7578806/pexels-photo-7578806.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "A smiling doctor in a white coat with a stethoscope provides a warm consultation.",
+      "usage": "Featured Doctor card or Testimonial section."
+    },
+    "abstract_accent": {
+      "url": "https://images.unsplash.com/photo-1681445019831-1c22cd19c9eb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGdyZWVuJTIwdGV4dHVyZXxlbnwwfHx8fDE3NzczNTQwNTZ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract blurry green photo.",
+      "usage": "Background texture for secondary sections or CTA blocks. Overlay with heavy white gradient if needed."
+    },
+    "clinic_interior": {
+      "url": "https://images.unsplash.com/photo-1762625570087-6d98fca29531?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBtZWRpY2FsJTIwY2xpbmljJTIwaW50ZXJpb3IlMjBicmlnaHR8ZW58MHx8fHwxNzc3MzU0MDQ2fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Modern waiting room.",
+      "usage": "Bento grid filler image or footer background."
+    }
+  },
+  "testing": {
+    "attributes": "All interactive and key informational elements MUST include a data-testid attribute. Convention: kebab-case, role-based. e.g. data-testid='booking-submit-button'"
+  },
+  "instructions_to_main_agent": [
+    "Extend Tailwind configuration with the custom colors defined here.",
+    "Import Outfit and Manrope fonts in index.css.",
+    "Do not use generic Shadcn Card component for marketing sections; use pure HTML bento grids.",
+    "Use Phosphor or Lucide icons for all UI elements.",
+    "Ensure all backgrounds have slight tint (Bone White) rather than pure white, except for top-level cards.",
+    "Implement the PhonePe gateway button with the primary color, ensuring strong contrast.",
+    "Never use pure black text. Use the defined text_primary (#1A2421).",
+    "Ensure the dashboard uses a dense grid structure without excessive padding inside widgets to maximize data visibility."
+  ]
+}
