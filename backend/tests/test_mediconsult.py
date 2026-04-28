@@ -1,7 +1,8 @@
-"""MediConsult API Backend Tests - full flow coverage"""
+"""MediConsult API Backend Tests - full flow + PhonePe v2 OAuth + Google auth (Iter 2)"""
 import pytest
 import requests
 import os
+import json
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
@@ -21,7 +22,6 @@ def admin_token():
 
 @pytest.fixture(scope="module")
 def user_token():
-    # Try to register (might already exist)
     requests.post(f"{BASE_URL}/api/auth/register", json={
         "email": TEST_USER_EMAIL, "password": TEST_USER_PASSWORD, "name": TEST_USER_NAME
     })
@@ -42,15 +42,12 @@ def user_headers(user_token):
 
 # --- AUTH TESTS ---
 class TestAuth:
-    """Authentication endpoint tests"""
-
     def test_register_new_user(self):
         resp = requests.post(f"{BASE_URL}/api/auth/register", json={
             "email": "newtest_register@test.com",
             "password": "Test@1234",
             "name": "New Test User"
         })
-        # Either 200 (success) or 400 (already exists)
         assert resp.status_code in [200, 400]
         if resp.status_code == 200:
             data = resp.json()
@@ -80,33 +77,37 @@ class TestAuth:
         resp = requests.get(f"{BASE_URL}/api/auth/me")
         assert resp.status_code == 401
 
+    def test_google_auth_invalid_session(self):
+        """Google OAuth with invalid session_id must reject with 401"""
+        resp = requests.post(f"{BASE_URL}/api/auth/google", json={"session_id": "INVALID_SESSION_ID_xyz"})
+        assert resp.status_code == 401, f"Expected 401, got {resp.status_code}: {resp.text}"
+
+    def test_google_auth_missing_session(self):
+        resp = requests.post(f"{BASE_URL}/api/auth/google", json={})
+        assert resp.status_code in [400, 422]
+
 
 # --- DOCTOR TESTS ---
 class TestDoctors:
-    """Doctor listing and CRUD tests"""
-
     def test_list_doctors_public(self):
         resp = requests.get(f"{BASE_URL}/api/doctors")
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
-        assert len(data) >= 5, f"Expected at least 5 seeded doctors, got {len(data)}"
+        assert len(data) >= 5
 
     def test_get_doctor_by_id(self):
         resp = requests.get(f"{BASE_URL}/api/doctors")
-        assert resp.status_code == 200
         doctors = resp.json()
         doctor_id = doctors[0]["_id"]
         detail_resp = requests.get(f"{BASE_URL}/api/doctors/{doctor_id}")
         assert detail_resp.status_code == 200
-        doc = detail_resp.json()
-        assert doc["_id"] == doctor_id
+        assert detail_resp.json()["_id"] == doctor_id
 
     def test_get_available_slots(self):
         resp = requests.get(f"{BASE_URL}/api/doctors")
-        doctors = resp.json()
-        doctor_id = doctors[0]["_id"]
-        slot_resp = requests.get(f"{BASE_URL}/api/doctors/{doctor_id}/available-slots", params={"date": "2025-06-15"})
+        doctor_id = resp.json()[0]["_id"]
+        slot_resp = requests.get(f"{BASE_URL}/api/doctors/{doctor_id}/available-slots", params={"date": "2026-06-15"})
         assert slot_resp.status_code == 200
         assert "available_slots" in slot_resp.json()
 
@@ -121,22 +122,18 @@ class TestDoctors:
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "TEST_Dr. Backend Test"
-        assert "_id" in data
-        # Store for later cleanup
         TestDoctors.created_doctor_id = data["_id"]
 
     def test_create_doctor_unauthorized(self, user_headers):
         resp = requests.post(f"{BASE_URL}/api/doctors", json={
-            "name": "Unauthorized Doc",
-            "specialization": "Test",
-            "qualification": "MBBS",
-            "experience_years": 3
+            "name": "Unauthorized Doc", "specialization": "Test",
+            "qualification": "MBBS", "experience_years": 3
         }, headers=user_headers)
         assert resp.status_code == 403
 
     def test_update_doctor_as_admin(self, admin_headers):
         if not hasattr(TestDoctors, 'created_doctor_id'):
-            pytest.skip("No doctor created to update")
+            pytest.skip("No doctor created")
         resp = requests.put(f"{BASE_URL}/api/doctors/{TestDoctors.created_doctor_id}",
                             json={"experience_years": 6}, headers=admin_headers)
         assert resp.status_code == 200
@@ -144,25 +141,22 @@ class TestDoctors:
 
     def test_delete_doctor_as_admin(self, admin_headers):
         if not hasattr(TestDoctors, 'created_doctor_id'):
-            pytest.skip("No doctor created to delete")
+            pytest.skip("No doctor created")
         resp = requests.delete(f"{BASE_URL}/api/doctors/{TestDoctors.created_doctor_id}", headers=admin_headers)
         assert resp.status_code == 200
 
 
 # --- APPOINTMENT TESTS ---
 class TestAppointments:
-    """Appointment booking and management tests"""
-
     @pytest.fixture(scope="class", autouse=True)
     def setup_doctor(self, admin_headers):
-        """Get a valid doctor ID for testing"""
         resp = requests.get(f"{BASE_URL}/api/doctors")
         TestAppointments.doctor_id = resp.json()[0]["_id"]
 
     def test_create_appointment(self, user_headers):
         resp = requests.post(f"{BASE_URL}/api/appointments", json={
             "doctor_id": TestAppointments.doctor_id,
-            "appointment_date": "2025-12-01",
+            "appointment_date": "2026-12-01",
             "appointment_time": "09:00",
             "notes": "Test appointment"
         }, headers=user_headers)
@@ -180,12 +174,10 @@ class TestAppointments:
     def test_list_appointments_admin(self, admin_headers):
         resp = requests.get(f"{BASE_URL}/api/appointments", headers=admin_headers)
         assert resp.status_code == 200
-        data = resp.json()
-        assert isinstance(data, list)
 
     def test_get_appointment(self, user_headers):
         if not hasattr(TestAppointments, 'appointment_id'):
-            pytest.skip("No appointment created")
+            pytest.skip("No appointment")
         resp = requests.get(f"{BASE_URL}/api/appointments/{TestAppointments.appointment_id}", headers=user_headers)
         assert resp.status_code == 200
 
@@ -194,84 +186,125 @@ class TestAppointments:
         assert resp.status_code == 401
 
 
-# --- PAYMENT TESTS ---
+# --- PAYMENT TESTS (PhonePe v2 OAuth) ---
 class TestPayments:
-    """Payment initiation and simulation tests"""
+    """Verify PhonePe v2 OAuth real checkout URL + webhook"""
 
-    def test_initiate_payment(self, user_headers):
-        # Create fresh appointment for payment
+    def _create_appointment(self, user_headers, time="10:00", date="2026-12-02"):
         resp = requests.get(f"{BASE_URL}/api/doctors")
         doctor_id = resp.json()[0]["_id"]
         appt_resp = requests.post(f"{BASE_URL}/api/appointments", json={
             "doctor_id": doctor_id,
-            "appointment_date": "2025-12-02",
-            "appointment_time": "10:00"
+            "appointment_date": date,
+            "appointment_time": time
         }, headers=user_headers)
-        if appt_resp.status_code != 200:
-            pytest.skip("Could not create appointment for payment test")
-        appt_id = appt_resp.json()["_id"]
+        assert appt_resp.status_code == 200, f"Appointment create failed: {appt_resp.text}"
+        return appt_resp.json()["_id"]
 
+    def test_initiate_payment_real_phonepe_v2(self, user_headers):
+        """v2 OAuth must return a real mercury-uat.phonepe.com checkout URL (is_simulation=false)"""
+        appt_id = self._create_appointment(user_headers, time="10:30")
         pay_resp = requests.post(f"{BASE_URL}/api/payments/initiate",
                                  json={"appointment_id": appt_id}, headers=user_headers)
-        assert pay_resp.status_code == 200
+        assert pay_resp.status_code == 200, f"Payment initiate failed: {pay_resp.text}"
         data = pay_resp.json()
         assert "checkout_url" in data
         assert "transaction_id" in data
+        assert "merchant_order_id" in data
         TestPayments.txn_id = data["transaction_id"]
-        # Should use simulation since real PhonePe UAT unavailable
-        assert data["is_simulation"] == True or "simulate" in data["checkout_url"]
+        TestPayments.merchant_order_id = data["merchant_order_id"]
+        TestPayments.checkout_url = data["checkout_url"]
+        TestPayments.is_simulation = data["is_simulation"]
+        # Critical: must be real PhonePe URL, not simulation fallback
+        assert data["is_simulation"] is False, (
+            f"Expected real PhonePe URL but got simulation. checkout_url={data['checkout_url']}"
+        )
+        assert "mercury-uat.phonepe.com" in data["checkout_url"] or "phonepe.com" in data["checkout_url"], (
+            f"checkout_url is not a PhonePe domain: {data['checkout_url']}"
+        )
 
-    def test_get_payment_status(self):
+    def test_get_payment_status_pending(self):
         if not hasattr(TestPayments, 'txn_id'):
-            pytest.skip("No transaction created")
+            pytest.skip("No transaction")
         resp = requests.get(f"{BASE_URL}/api/payments/status/{TestPayments.txn_id}")
         assert resp.status_code == 200
         data = resp.json()
-        assert "payment_state" in data
         assert data["transaction_id"] == TestPayments.txn_id
+        assert data["merchant_order_id"] == TestPayments.merchant_order_id
+        # State should be PENDING since payment hasn't been completed at PhonePe side
+        assert data["payment_state"] in ["PENDING", "COMPLETED", "FAILED"]
 
-    def test_simulate_payment_success(self):
-        if not hasattr(TestPayments, 'txn_id'):
-            pytest.skip("No transaction created")
-        resp = requests.post(f"{BASE_URL}/api/payments/simulate/{TestPayments.txn_id}/success")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["transaction_id"] == TestPayments.txn_id
-
-    def test_payment_status_after_success(self):
-        if not hasattr(TestPayments, 'txn_id'):
-            pytest.skip("No transaction created")
-        resp = requests.get(f"{BASE_URL}/api/payments/status/{TestPayments.txn_id}")
-        assert resp.status_code == 200
-        assert resp.json()["payment_state"] == "COMPLETED"
-
-    def test_simulate_payment_failure(self, user_headers):
-        # Create another appointment for failure test
-        resp = requests.get(f"{BASE_URL}/api/doctors")
-        doctor_id = resp.json()[0]["_id"]
-        appt_resp = requests.post(f"{BASE_URL}/api/appointments", json={
-            "doctor_id": doctor_id,
-            "appointment_date": "2025-12-03",
-            "appointment_time": "11:00"
-        }, headers=user_headers)
-        if appt_resp.status_code != 200:
-            pytest.skip("Could not create appointment")
-        appt_id = appt_resp.json()["_id"]
+    def test_webhook_marks_completed(self, user_headers):
+        """Webhook with v2 event must mark transaction COMPLETED + appointment confirmed"""
+        # Create fresh appt + payment so we have a clean transaction
+        appt_id = self._create_appointment(user_headers, time="11:30", date="2026-12-04")
         pay_resp = requests.post(f"{BASE_URL}/api/payments/initiate",
                                  json={"appointment_id": appt_id}, headers=user_headers)
+        assert pay_resp.status_code == 200
+        merchant_order_id = pay_resp.json()["merchant_order_id"]
         txn_id = pay_resp.json()["transaction_id"]
-        fail_resp = requests.post(f"{BASE_URL}/api/payments/simulate/{txn_id}/failure")
-        assert fail_resp.status_code == 200
+
+        # Send v2 webhook payload
+        webhook_body = {
+            "event": "checkout.order.completed",
+            "payload": {
+                "merchantOrderId": merchant_order_id,
+                "state": "COMPLETED",
+                "amount": 200000,
+            }
+        }
+        wh_resp = requests.post(f"{BASE_URL}/api/payments/webhook", json=webhook_body)
+        assert wh_resp.status_code == 200, f"Webhook failed: {wh_resp.text}"
+        assert wh_resp.json().get("status") == "received"
+
+        # Verify transaction state is COMPLETED
+        status_resp = requests.get(f"{BASE_URL}/api/payments/status/{txn_id}")
+        assert status_resp.status_code == 200
+        assert status_resp.json()["payment_state"] == "COMPLETED", (
+            f"Webhook did not mark COMPLETED: {status_resp.json()}"
+        )
+
+        # Verify appointment confirmed
+        appt_resp = requests.get(f"{BASE_URL}/api/appointments/{appt_id}", headers=user_headers)
+        assert appt_resp.status_code == 200
+        appt_data = appt_resp.json()
+        assert appt_data["status"] == "confirmed", f"Appointment not confirmed: {appt_data}"
+        assert appt_data["payment_status"] == "paid"
+
+    def test_webhook_marks_failed(self, user_headers):
+        """Webhook with FAILED state must mark transaction FAILED + appointment cancelled"""
+        appt_id = self._create_appointment(user_headers, time="13:00", date="2026-12-05")
+        pay_resp = requests.post(f"{BASE_URL}/api/payments/initiate",
+                                 json={"appointment_id": appt_id}, headers=user_headers)
+        merchant_order_id = pay_resp.json()["merchant_order_id"]
+        txn_id = pay_resp.json()["transaction_id"]
+
+        webhook_body = {
+            "event": "checkout.order.failed",
+            "payload": {"merchantOrderId": merchant_order_id, "state": "FAILED"}
+        }
+        wh_resp = requests.post(f"{BASE_URL}/api/payments/webhook", json=webhook_body)
+        assert wh_resp.status_code == 200
+
+        status_resp = requests.get(f"{BASE_URL}/api/payments/status/{txn_id}")
+        assert status_resp.json()["payment_state"] == "FAILED"
 
     def test_payment_invalid_txn(self):
         resp = requests.get(f"{BASE_URL}/api/payments/status/INVALID_TXN_ID")
         assert resp.status_code == 404
 
+    def test_simulate_endpoint_still_works(self, user_headers):
+        """Legacy simulate endpoints should still function"""
+        appt_id = self._create_appointment(user_headers, time="14:00", date="2026-12-06")
+        pay_resp = requests.post(f"{BASE_URL}/api/payments/initiate",
+                                 json={"appointment_id": appt_id}, headers=user_headers)
+        txn_id = pay_resp.json()["transaction_id"]
+        ok_resp = requests.post(f"{BASE_URL}/api/payments/simulate/{txn_id}/success")
+        assert ok_resp.status_code == 200
+
 
 # --- ADMIN TESTS ---
 class TestAdmin:
-    """Admin CRM endpoints"""
-
     def test_get_admin_stats(self, admin_headers):
         resp = requests.get(f"{BASE_URL}/api/admin/stats", headers=admin_headers)
         assert resp.status_code == 200

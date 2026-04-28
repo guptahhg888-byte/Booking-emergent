@@ -8,6 +8,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Skip /auth/me check if we're processing an OAuth callback; AuthCallback will set auth.
+    if (typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
+      setLoading(false);
+      return;
+    }
     const token = localStorage.getItem('mediconsult_token');
     if (token) {
       api.get('/auth/me')
@@ -33,13 +38,18 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
+  const setAuthFromToken = (token, userObj) => {
+    localStorage.setItem('mediconsult_token', token);
+    setUser(userObj);
+  };
+
   const logout = () => {
     localStorage.removeItem('mediconsult_token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, setAuthFromToken }}>
       {children}
     </AuthContext.Provider>
   );
