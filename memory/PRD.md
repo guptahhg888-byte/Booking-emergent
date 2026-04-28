@@ -86,6 +86,23 @@ Medical Doctor Consultation Platform with CRM, appointment booking, and PhonePe 
 - [x] `/auth/callback` route handles `#session_id=` fragment with race-safe `useRef`
 - [x] AuthContext skips `/auth/me` during OAuth callback to avoid race with cookie setting
 
+### Backend Refactor (Feb 2026)
+- [x] `server.py` split from 833 → ~50 lines
+- [x] Modular structure: `core/` (config, database, deps, models, security), `services/` (phonepe, activity), `routes/` (auth, doctors, appointments, payments, admin), `seed.py`
+- [x] MongoDB indexes on hot paths (users.email, doctors.*, appointments.*, transactions.*, activity_logs.timestamp)
+- [x] All absolute imports, lint-clean
+
+### PhonePe Webhook Security (Feb 2026)
+- [x] `verify_webhook_auth()` — SHA256(`PHONEPE_WEBHOOK_USERNAME`:`PHONEPE_WEBHOOK_PASSWORD`) comparison
+- [x] Accepts both raw hex and `SHA256 <hex>` prefixed forms
+- [x] Dev mode: when either env var empty, validation skipped (logged warning)
+- [x] Production: set both env vars + webhook URL in PhonePe Business Dashboard
+
+### Performance / DX (Feb 2026)
+- [x] React.lazy + Suspense for BookingPage, UserDashboard, AdminDashboard, PaymentStatus, PaymentSimulation
+- [x] `RouteFallback` spinner (testid `route-loader`)
+- [x] Comprehensive `README.md` at `/app/README.md` with setup, API reference, go-live checklist
+
 ### Admin CRM Dashboard
 - [x] Stats: Total Doctors, Appointments, Patients, Revenue
 - [x] Monthly Revenue Bar Chart (Recharts)
@@ -124,14 +141,14 @@ All prefixed with /api:
 - [x] ~~Real PhonePe production credentials setup~~ ✅ UAT live Feb 2026; flip PHONEPE_ENV=PRODUCTION when ready to go live
 
 ### P1 (High Priority)
-- PhonePe webhook signature validation (Authorization header from PhonePe Business Dashboard) - required before PRODUCTION
-- data-testid coverage for any newly added UI elements (ongoing)
+- [x] ~~PhonePe webhook signature validation~~ ✅ Done Feb 2026 (set `PHONEPE_WEBHOOK_USERNAME`/`PASSWORD` in `.env` to enable)
+- [x] ~~data-testid coverage audit~~ ✅ Already comprehensive (verified Feb 2026)
+- [x] ~~Performance: code splitting, lazy loading, DB indexing~~ ✅ Done Feb 2026
+- [x] ~~Deployment config + README/API docs~~ ✅ `/app/README.md` Feb 2026
 - Doctor availability scheduling (set custom hours per doctor)
 - Email notifications (Resend) - appointment confirmation, payment receipt [SKIPPED BY USER]
 - Patient profile management (update name, phone, address)
 - Appointment rescheduling
-- Performance: code splitting, lazy loading, DB indexing
-- Deployment configuration & README/API docs
 
 ### P2 (Nice to Have)
 - Video consultation integration (Zoom/WebRTC)
@@ -140,14 +157,13 @@ All prefixed with /api:
 - Automated appointment reminders (SMS via Twilio) [SKIPPED BY USER]
 - Mobile-responsive PWA
 - Advanced CRM analytics (patient retention, doctor performance)
-- Refactor: split server.py (833 lines) into routers/auth.py, routers/payments.py, routers/admin.py
 - Multi-language support (Hindi, Tamil, etc.)
 
 ---
 
 ## Next Tasks List
-1. Add PhonePe webhook signature validation before PRODUCTION go-live
-2. Add data-testid to any remaining UI elements
-3. Performance optimization (code splitting, lazy loading, DB indexing)
-4. Deployment config + README/API docs
-5. Refactor server.py into modular routers
+1. Switch `PHONEPE_ENV=PRODUCTION` + register production credentials + set webhook signing credentials when ready to go live
+2. Doctor availability scheduling (custom hours)
+3. Patient profile management
+4. Appointment rescheduling
+5. Video consultation integration
