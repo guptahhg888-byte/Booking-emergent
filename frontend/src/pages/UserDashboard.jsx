@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, CreditCard, XCircle, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, User, CreditCard, XCircle, CheckCircle, AlertCircle, ChevronRight, CalendarClock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import RescheduleModal from '../components/RescheduleModal';
 import api from '../utils/api';
 
 const statusConfig = {
@@ -22,6 +23,7 @@ const UserDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [cancellingId, setCancellingId] = useState(null);
+  const [rescheduleAppt, setRescheduleAppt] = useState(null);
 
   useEffect(() => {
     api.get('/appointments')
@@ -164,6 +166,15 @@ const UserDashboard = () => {
                       )}
                       {canCancel && (
                         <button
+                          onClick={() => setRescheduleAppt(appt)}
+                          className="flex items-center gap-1 text-xs border border-mc-border text-mc-text rounded-full px-3 py-1.5 hover:border-mc-primary hover:text-mc-primary transition-all font-body"
+                          data-testid={`reschedule-appointment-${appt._id}`}
+                        >
+                          <CalendarClock size={12} /> Reschedule
+                        </button>
+                      )}
+                      {canCancel && (
+                        <button
                           onClick={() => handleCancel(appt._id)}
                           disabled={cancellingId === appt._id}
                           className="flex items-center gap-1 text-xs border border-red-200 text-red-600 rounded-full px-3 py-1.5 hover:bg-red-50 transition-all font-body disabled:opacity-50"
@@ -185,6 +196,17 @@ const UserDashboard = () => {
           </div>
         )}
       </div>
+
+      {rescheduleAppt && (
+        <RescheduleModal
+          appointment={rescheduleAppt}
+          onClose={() => setRescheduleAppt(null)}
+          onSuccess={(updated) => {
+            setAppointments(prev => prev.map(a => a._id === updated._id ? { ...a, appointment_date: updated.appointment_date, appointment_time: updated.appointment_time } : a));
+            setRescheduleAppt(null);
+          }}
+        />
+      )}
     </div>
   );
 };

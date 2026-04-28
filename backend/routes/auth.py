@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from core.config import EMERGENT_AUTH_SESSION_URL
 from core.database import db
 from core.deps import get_current_user
-from core.models import RegisterRequest, LoginRequest, GoogleSessionRequest
+from core.models import RegisterRequest, LoginRequest, GoogleSessionRequest, ProfileUpdate
 from core.security import hash_password, verify_password, create_token
 from services.activity import log_activity
 
@@ -58,6 +58,25 @@ async def login(body: LoginRequest):
 @router.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/profile")
+async def update_profile(body: ProfileUpdate, current_user: dict = Depends(get_current_user)):
+    """Patient profile editor — updates name, phone, address. Email is locked (identity)."""
+    from bson import ObjectId
+    updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if not updates:
+        return current_user
+    await db.users.update_one(
+        {"_id": ObjectId(current_user["_id"])},
+        {"$set": updates},
+    )
+    await log_activity(current_user["_id"], current_user.get("name", ""), "PROFILE_UPDATED",
+                       ", ".join(updates.keys()))
+    user = await db.users.find_one({"_id": ObjectId(current_user["_id"])})
+    user["_id"] = str(user["_id"])
+    user.pop("password_hash", None)
+    return user
 
 
 @router.post("/google")

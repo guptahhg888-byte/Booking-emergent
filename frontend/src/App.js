@@ -15,6 +15,7 @@ const UserDashboard = lazy(() => import('./pages/UserDashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const PaymentStatus = lazy(() => import('./pages/PaymentStatus'));
 const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 const RouteFallback = () => (
   <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-mc-bg" data-testid="route-loader">
@@ -55,6 +56,9 @@ function App() {
               <Route path="/payment/simulate/:txnId" element={<PaymentSimulation />} />
               <Route path="/dashboard" element={
                 <ProtectedRoute><UserDashboard /></ProtectedRoute>
+              } />
+              <Route path="/profile" element={
+                <ProtectedRoute><ProfilePage /></ProtectedRoute>
               } />
               <Route path="/admin" element={
                 <ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>

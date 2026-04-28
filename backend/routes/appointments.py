@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from core.database import db
 from core.deps import get_current_user, get_admin_user
-from core.models import AppointmentCreate
+from core.models import AppointmentCreate, RescheduleRequest
 from services.activity import log_activity
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
@@ -105,3 +105,58 @@ async def cancel_appointment(appt_id: str, current_user: dict = Depends(get_curr
         raise HTTPException(status_code=403, detail="Access denied")
     await db.appointments.update_one({"_id": ObjectId(appt_id)}, {"$set": {"status": "cancelled"}})
     return {"message": "Appointment cancelled"}
+
+
+@router.put("/{appt_id}/reschedule")
+async def reschedule_appointment(
+    appt_id: str, body: RescheduleRequest, current_user: dict = Depends(get_current_user)
+):
+    """Patient or admin can reschedule an upcoming confirmed/pending_payment appointment."""
+    try:
+        appt = await db.appointments.find_one({"_id": ObjectId(appt_id)})
+    except Exception:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    is_admin = current_user.get("role") == "admin"
+    if not is_admin and appt["user_id"] != current_user["_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if appt["status"] not in ("confirmed", "pending_payment"):
+        raise HTTPException(status_code=400, detail="Only upcoming appointments can be rescheduled")
+
+    # Reject past slots
+    try:
+        target = datetime.strptime(f"{body.appointment_date} {body.appointment_time}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date or time format")
+    if target < datetime.now():
+        raise HTTPException(status_code=400, detail="Cannot reschedule to a past slot")
+
+    # Don't clash with another appointment on the same doctor+date+time (excluding self)
+    clash = await db.appointments.find_one({
+        "_id": {"$ne": ObjectId(appt_id)},
+        "doctor_id": appt["doctor_id"],
+        "appointment_date": body.appointment_date,
+        "appointment_time": body.appointment_time,
+        "status": {"$nin": ["cancelled"]},
+    })
+    if clash:
+        raise HTTPException(status_code=400, detail="This time slot is already booked")
+
+    old = f"{appt['appointment_date']} {appt['appointment_time']}"
+    await db.appointments.update_one(
+        {"_id": ObjectId(appt_id)},
+        {"$set": {
+            "appointment_date": body.appointment_date,
+            "appointment_time": body.appointment_time,
+            "rescheduled_at": datetime.now(timezone.utc),
+        }},
+    )
+    await log_activity(
+        current_user["_id"], current_user.get("name", ""), "APPOINTMENT_RESCHEDULED",
+        f"{appt.get('doctor_name', '')}: {old} → {body.appointment_date} {body.appointment_time}",
+    )
+    updated = await db.appointments.find_one({"_id": ObjectId(appt_id)})
+    updated["_id"] = str(updated["_id"])
+    return updated

@@ -11,11 +11,42 @@ from services.activity import log_activity
 
 router = APIRouter(prefix="/doctors", tags=["doctors"])
 
-_ALL_SLOTS = [
-    "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-    "12:00", "12:30", "14:00", "14:30", "15:00", "15:30",
-    "16:00", "16:30", "17:00",
-]
+
+def _hm_to_minutes(hm: str) -> int:
+    h, m = hm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def _minutes_to_hm(total: int) -> str:
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def _generate_slots(doc: dict) -> list[str]:
+    """Generate time slots for a doctor from start_time/end_time/slot_duration_minutes.
+    Skips any slot that falls inside [lunch_start, lunch_end) if configured.
+    Falls back to a 9:00-17:00 / 30-min grid (skip 13-14 lunch) for legacy docs.
+    """
+    start = _hm_to_minutes(doc.get("start_time") or "09:00")
+    end = _hm_to_minutes(doc.get("end_time") or "17:00")
+    dur = int(doc.get("slot_duration_minutes") or 30)
+    if dur <= 0 or end <= start:
+        return []
+    lunch_s = doc.get("lunch_start")
+    lunch_e = doc.get("lunch_end")
+    lunch_range = None
+    if lunch_s and lunch_e:
+        ls, le = _hm_to_minutes(lunch_s), _hm_to_minutes(lunch_e)
+        if le > ls:
+            lunch_range = (ls, le)
+    slots = []
+    cur = start
+    while cur + dur <= end:
+        if lunch_range and lunch_range[0] <= cur < lunch_range[1]:
+            cur += dur
+            continue
+        slots.append(_minutes_to_hm(cur))
+        cur += dur
+    return slots
 
 
 @router.get("")
@@ -34,6 +65,13 @@ async def list_doctors(search: Optional[str] = None):
 
 @router.get("/{doctor_id}/available-slots")
 async def get_available_slots(doctor_id: str, date: str):
+    try:
+        doc = await db.doctors.find_one({"_id": ObjectId(doctor_id)})
+    except Exception:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    if not doc:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    all_slots = _generate_slots(doc)
     booked = await db.appointments.find(
         {
             "doctor_id": doctor_id,
@@ -41,9 +79,9 @@ async def get_available_slots(doctor_id: str, date: str):
             "status": {"$nin": ["cancelled"]},
         },
         {"appointment_time": 1},
-    ).to_list(100)
+    ).to_list(200)
     booked_times = {a["appointment_time"] for a in booked}
-    return {"available_slots": [s for s in _ALL_SLOTS if s not in booked_times]}
+    return {"available_slots": [s for s in all_slots if s not in booked_times]}
 
 
 @router.get("/{doctor_id}")

@@ -30,6 +30,23 @@ class DoctorCreate(BaseModel):
     available_days: List[str] = [
         "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
     ]
+    # Custom working hours (HH:MM 24h). Defaults kept for backward-compat.
+    start_time: str = "09:00"
+    end_time: str = "17:00"
+    slot_duration_minutes: int = 30
+    lunch_start: Optional[str] = "13:00"
+    lunch_end: Optional[str] = "14:00"
+
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+
+
+class RescheduleRequest(BaseModel):
+    appointment_date: str
+    appointment_time: str
 
 
 class AppointmentCreate(BaseModel):

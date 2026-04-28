@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Menu, X, Stethoscope, ChevronDown, User, LayoutDashboard, LogOut, ShieldCheck } from 'lucide-react';
+import { Menu, X, Stethoscope, ChevronDown, User, LayoutDashboard, LogOut, ShieldCheck, UserCog } from 'lucide-react';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -85,6 +85,15 @@ const Navbar = () => {
                       <LayoutDashboard size={15} className="text-mc-secondary" />
                       My Appointments
                     </Link>
+                    <Link
+                      to="/profile"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-mc-text hover:bg-mc-bg transition-colors font-body"
+                      data-testid="nav-profile"
+                    >
+                      <UserCog size={15} className="text-mc-secondary" />
+                      My Profile
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors font-body border-t border-mc-border"
@@ -126,6 +135,7 @@ const Navbar = () => {
                 <Link to="/admin" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-body text-mc-primary font-medium">CRM Dashboard</Link>
               )}
               <Link to="/dashboard" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-body text-mc-text">My Appointments</Link>
+              <Link to="/profile" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-body text-mc-text">My Profile</Link>
               <button onClick={() => { handleLogout(); setMobileOpen(false); }} className="block py-2.5 text-sm text-red-600 font-body">Logout</button>
             </>
           ) : (

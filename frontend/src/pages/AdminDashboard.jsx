@@ -32,7 +32,9 @@ const statusBadge = (status) => {
 const EMPTY_FORM = {
   name: '', specialization: '', qualification: '', experience_years: '',
   consultation_fee: 2000, bio: '', image_url: '',
-  available_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+  available_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+  start_time: '09:00', end_time: '17:00', slot_duration_minutes: 30,
+  lunch_start: '13:00', lunch_end: '14:00',
 };
 
 const AdminDashboard = () => {
@@ -91,7 +93,16 @@ const AdminDashboard = () => {
   const openAdd = () => { setEditDoctor(null); setDocForm(EMPTY_FORM); setFormError(''); setShowModal(true); };
   const openEdit = (doc) => {
     setEditDoctor(doc);
-    setDocForm({ name: doc.name, specialization: doc.specialization, qualification: doc.qualification, experience_years: doc.experience_years, consultation_fee: doc.consultation_fee, bio: doc.bio || '', image_url: doc.image_url || '', available_days: doc.available_days || [] });
+    setDocForm({
+      name: doc.name, specialization: doc.specialization, qualification: doc.qualification,
+      experience_years: doc.experience_years, consultation_fee: doc.consultation_fee,
+      bio: doc.bio || '', image_url: doc.image_url || '', available_days: doc.available_days || [],
+      start_time: doc.start_time || '09:00',
+      end_time: doc.end_time || '17:00',
+      slot_duration_minutes: doc.slot_duration_minutes || 30,
+      lunch_start: doc.lunch_start || '',
+      lunch_end: doc.lunch_end || '',
+    });
     setFormError('');
     setShowModal(true);
   };
@@ -101,7 +112,14 @@ const AdminDashboard = () => {
     setSaving(true);
     setFormError('');
     try {
-      const payload = { ...docForm, experience_years: parseInt(docForm.experience_years), consultation_fee: parseFloat(docForm.consultation_fee) };
+      const payload = {
+        ...docForm,
+        experience_years: parseInt(docForm.experience_years),
+        consultation_fee: parseFloat(docForm.consultation_fee),
+        slot_duration_minutes: parseInt(docForm.slot_duration_minutes) || 30,
+        lunch_start: docForm.lunch_start || null,
+        lunch_end: docForm.lunch_end || null,
+      };
       if (editDoctor) {
         await api.put(`/doctors/${editDoctor._id}`, payload);
       } else {
@@ -569,6 +587,65 @@ const AdminDashboard = () => {
                     >{day.slice(0, 3)}</button>
                   ))}
                 </div>
+              </div>
+
+              {/* Working Hours */}
+              <div className="border-t border-mc-border pt-4">
+                <label className="block text-xs font-medium text-mc-text mb-3 font-body">Working Hours & Slot Duration</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Start</label>
+                    <input
+                      type="time" value={docForm.start_time}
+                      onChange={e => setDocForm(p => ({ ...p, start_time: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                      data-testid="doctor-form-start_time" required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">End</label>
+                    <input
+                      type="time" value={docForm.end_time}
+                      onChange={e => setDocForm(p => ({ ...p, end_time: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                      data-testid="doctor-form-end_time" required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Slot (min)</label>
+                    <select
+                      value={docForm.slot_duration_minutes}
+                      onChange={e => setDocForm(p => ({ ...p, slot_duration_minutes: parseInt(e.target.value) }))}
+                      className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                      data-testid="doctor-form-slot_duration"
+                    >
+                      {[15, 20, 30, 45, 60].map(v => <option key={v} value={v}>{v} min</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Lunch Break Start (optional)</label>
+                    <input
+                      type="time" value={docForm.lunch_start}
+                      onChange={e => setDocForm(p => ({ ...p, lunch_start: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                      data-testid="doctor-form-lunch_start"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Lunch Break End (optional)</label>
+                    <input
+                      type="time" value={docForm.lunch_end}
+                      onChange={e => setDocForm(p => ({ ...p, lunch_end: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                      data-testid="doctor-form-lunch_end"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-mc-text-secondary mt-2 font-body">
+                  Leave lunch fields blank for no break. Slots auto-generated from this schedule.
+                </p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 btn-secondary text-sm py-3" data-testid="cancel-doctor-form">Cancel</button>
