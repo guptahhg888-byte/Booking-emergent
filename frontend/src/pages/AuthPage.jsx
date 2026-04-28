@@ -24,8 +24,8 @@ const AuthPage = () => {
     setError('');
     try {
       if (mode === 'login') {
-        await login(form.email, form.password);
-        navigate('/dashboard');
+        const data = await login(form.email, form.password);
+        navigate(data.user?.role === 'admin' ? '/admin' : '/dashboard');
       } else {
         if (!form.name.trim()) { setError('Name is required'); setLoading(false); return; }
         await register(form.name, form.email, form.password, form.phone);
