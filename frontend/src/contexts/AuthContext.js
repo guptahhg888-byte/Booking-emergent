@@ -24,15 +24,15 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const login = async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
+  const login = async (email, password, captcha_token, captcha_answer) => {
+    const res = await api.post('/auth/login', { email, password, captcha_token, captcha_answer });
     localStorage.setItem('mediconsult_token', res.data.token);
     setUser(res.data.user);
     return res.data;
   };
 
-  const register = async (name, email, password, phone) => {
-    const res = await api.post('/auth/register', { name, email, password, phone });
+  const register = async (name, email, password, phone, captcha_token, captcha_answer) => {
+    const res = await api.post('/auth/register', { name, email, password, phone, captcha_token, captcha_answer });
     localStorage.setItem('mediconsult_token', res.data.token);
     setUser(res.data.user);
     return res.data;

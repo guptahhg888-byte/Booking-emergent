@@ -8,11 +8,15 @@ class RegisterRequest(BaseModel):
     password: str
     name: str
     phone: Optional[str] = None
+    captcha_token: str
+    captcha_answer: str
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+    captcha_token: str
+    captcha_answer: str
 
 
 class GoogleSessionRequest(BaseModel):

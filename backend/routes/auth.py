@@ -1,10 +1,13 @@
 """Auth routes: email/password JWT + Emergent Google OAuth."""
 import logging
-from datetime import datetime, timezone
+import random
+import jwt
+from datetime import datetime, timezone, timedelta
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 
 from core.database import db
+from core.config import JWT_SECRET, JWT_ALGORITHM
 from core.deps import get_current_user
 from core.models import RegisterRequest, LoginRequest, ProfileUpdate
 from core.security import hash_password, verify_password, create_token
@@ -13,9 +16,41 @@ from services.activity import log_activity
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+def verify_captcha(token: str, answer: str):
+    if not token or not answer:
+        raise HTTPException(status_code=400, detail="CAPTCHA is required")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if str(payload.get("answer")) != str(answer).strip():
+            raise HTTPException(status_code=400, detail="Incorrect CAPTCHA answer")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="CAPTCHA expired. Please try again.")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid CAPTCHA token")
+
+@router.get("/captcha")
+async def get_captcha():
+    a = random.randint(1, 10)
+    b = random.randint(1, 10)
+    operator = random.choice(["+", "-"])
+    if operator == "-":
+        if a < b:
+            a, b = b, a # Ensure positive answer
+        ans = a - b
+    else:
+        ans = a + b
+    
+    payload = {
+        "answer": ans,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=5)
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return {"question": f"{a} {operator} {b} = ?", "token": token}
+
 
 @router.post("/register")
 async def register(body: RegisterRequest):
+    verify_captcha(body.captcha_token, body.captcha_answer)
     email = body.email.lower().strip()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -38,6 +73,7 @@ async def register(body: RegisterRequest):
 
 @router.post("/login")
 async def login(body: LoginRequest):
+    verify_captcha(body.captcha_token, body.captcha_answer)
     email = body.email.lower().strip()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user.get("password_hash", "")):

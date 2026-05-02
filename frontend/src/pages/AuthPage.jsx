@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Stethoscope, Eye, EyeOff, ArrowRight, ChevronDown } from 'lucide-react';
 
@@ -47,6 +48,24 @@ const AuthPage = () => {
   const [codeSearch, setCodeSearch] = useState('');
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' });
 
+  // CAPTCHA State
+  const [captcha, setCaptcha] = useState(null);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+
+  const fetchCaptcha = async () => {
+    try {
+      const res = await api.get('/auth/captcha');
+      setCaptcha(res.data);
+      setCaptchaAnswer('');
+    } catch (err) {
+      console.error('Failed to fetch CAPTCHA', err);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchCaptcha();
+  }, [mode]);
+
   const handleChange = (e) => {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }));
     setError('');
@@ -65,18 +84,19 @@ const AuthPage = () => {
     setError('');
     try {
       if (mode === 'login') {
-        const data = await login(form.email, form.password);
+        const data = await login(form.email, form.password, captcha?.token, captchaAnswer);
         navigate(data.user?.role === 'admin' ? '/admin' : '/dashboard');
       } else {
         if (!form.name.trim()) { setError('Name is required'); setLoading(false); return; }
         const fullPhone = form.phone ? `${phoneCode} ${form.phone}` : '';
-        await register(form.name, form.email, form.password, fullPhone);
+        await register(form.name, form.email, form.password, fullPhone, captcha?.token, captchaAnswer);
         navigate('/doctors');
       }
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) setError(detail.map(d => d.msg).join(' '));
       else setError(detail || 'Something went wrong. Please try again.');
+      fetchCaptcha(); // Reset CAPTCHA on failure
     } finally {
       setLoading(false);
     }
@@ -218,6 +238,22 @@ const AuthPage = () => {
                 <p className="text-[11px] text-mc-text-secondary mt-1 font-body">
                   Saved as: {phoneCode} {form.phone || 'XXXXXXXXXX'}
                 </p>
+              </div>
+            )}
+
+            {/* CAPTCHA */}
+            {captcha && (
+              <div className="bg-mc-primary/5 border border-mc-primary/20 rounded-xl p-4 mt-2">
+                <label className="block text-sm font-medium text-mc-text mb-2 font-body flex items-center justify-between">
+                  <span>Security Check: <span className="font-bold text-mc-primary">{captcha.question}</span> *</span>
+                  <button type="button" onClick={fetchCaptcha} className="text-mc-primary text-xs hover:underline font-medium">Reload</button>
+                </label>
+                <input
+                  type="text" value={captchaAnswer} onChange={(e) => setCaptchaAnswer(e.target.value)}
+                  placeholder="Enter your answer" required
+                  className="w-full px-4 py-2.5 border border-mc-border rounded-xl text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary focus:ring-2 focus:ring-mc-secondary/20 transition-all"
+                  data-testid="captcha-input"
+                />
               </div>
             )}
 
