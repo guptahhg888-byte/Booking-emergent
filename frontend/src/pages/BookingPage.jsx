@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Clock, Award, Calendar, ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { Star, Clock, Award, Calendar, ChevronLeft, CheckCircle, AlertCircle, ChevronDown } from 'lucide-react';
 import { Calendar as CalendarComp } from '../components/ui/calendar';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
@@ -12,6 +12,27 @@ const formatDate = (date) => {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+};
+
+/**
+ * Build available duration options for a doctor.
+ * Adds 45-min and/or 60-min options only when the admin has configured them.
+ * Falls back to a single "Standard" option using consultation_fee if neither is set.
+ */
+const buildDurationOptions = (doctor) => {
+  const options = [];
+
+  if (doctor.fee_45min != null) {
+    options.push({ label: '45 min', minutes: 45, fee: doctor.fee_45min });
+  }
+  if (doctor.fee_60min != null) {
+    options.push({ label: '60 min', minutes: 60, fee: doctor.fee_60min });
+  }
+  if (options.length === 0) {
+    options.push({ label: 'Standard', minutes: null, fee: doctor.consultation_fee });
+  }
+
+  return options;
 };
 
 const BookingPage = () => {
@@ -29,9 +50,18 @@ const BookingPage = () => {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Duration selection
+  const [durationOptions, setDurationOptions] = useState([]);
+  const [selectedDuration, setSelectedDuration] = useState(null); // { label, minutes, fee }
+
   useEffect(() => {
     api.get(`/doctors/${id}`)
-      .then(res => setDoctor(res.data))
+      .then(res => {
+        setDoctor(res.data);
+        const opts = buildDurationOptions(res.data);
+        setDurationOptions(opts);
+        setSelectedDuration(opts[0]);
+      })
       .catch(() => navigate('/doctors'))
       .finally(() => setLoading(false));
   }, [id, navigate]);
@@ -64,6 +94,7 @@ const BookingPage = () => {
         doctor_id: id,
         appointment_date: formatDate(selectedDate),
         appointment_time: selectedTime,
+        duration_minutes: selectedDuration?.minutes ?? null,
         notes: notes || null
       });
       const payRes = await api.post('/payments/initiate', { appointment_id: apptRes.data._id });
@@ -84,6 +115,8 @@ const BookingPage = () => {
   }
 
   if (!doctor) return null;
+
+  const hasMultipleDurations = durationOptions.length > 1;
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-mc-bg py-8 px-4">
@@ -134,12 +167,41 @@ const BookingPage = () => {
               </div>
             </div>
 
-            <div className="bg-mc-primary rounded-2xl p-5 flex items-center justify-between">
-              <div>
-                <p className="text-white/70 text-xs">Consultation Fee</p>
-                <p className="font-heading text-3xl text-white font-700">₹{doctor.consultation_fee?.toLocaleString()}</p>
-              </div>
-              <Award size={36} className="text-white/30" />
+            {/* Consultation Fee Card — dynamic, shows per-duration pricing if configured */}
+            <div className="bg-mc-primary rounded-2xl p-5">
+              {hasMultipleDurations ? (
+                <div>
+                  <p className="text-white/70 text-xs mb-3">Consultation Fee</p>
+                  <div className="space-y-2">
+                    {durationOptions.map(opt => (
+                      <button
+                        key={opt.label}
+                        onClick={() => setSelectedDuration(opt)}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all font-body text-sm ${
+                          selectedDuration?.label === opt.label
+                            ? 'bg-white text-mc-primary border-white font-semibold'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                        }`}
+                        data-testid={`duration-option-${opt.minutes}`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Clock size={14} />
+                          {opt.label}
+                        </span>
+                        <span className="font-heading font-700">₹{opt.fee?.toLocaleString()}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/70 text-xs">Consultation Fee</p>
+                    <p className="font-heading text-3xl text-white font-700">₹{selectedDuration?.fee?.toLocaleString()}</p>
+                  </div>
+                  <Award size={36} className="text-white/30" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -159,6 +221,36 @@ const BookingPage = () => {
               {!user && (
                 <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-3 mb-5 font-body">
                   Please <button onClick={() => navigate('/login')} className="font-medium underline">login</button> to book an appointment.
+                </div>
+              )}
+
+              {/* Duration Selector Dropdown — only shown when multiple durations are configured */}
+              {hasMultipleDurations && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-mc-text mb-2 font-body">
+                    Session Duration *
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedDuration?.label || ''}
+                      onChange={e => {
+                        const found = durationOptions.find(o => o.label === e.target.value);
+                        if (found) setSelectedDuration(found);
+                      }}
+                      className="w-full appearance-none px-4 py-3 border border-mc-border rounded-xl text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary focus:ring-2 focus:ring-mc-secondary/20 transition-all pr-10"
+                      data-testid="duration-select"
+                    >
+                      {durationOptions.map(opt => (
+                        <option key={opt.label} value={opt.label}>
+                          {opt.label} — ₹{opt.fee?.toLocaleString()}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-mc-text-secondary pointer-events-none" />
+                  </div>
+                  <p className="text-xs text-mc-text-secondary mt-1.5 font-body">
+                    Fee for selected session: <span className="font-semibold text-mc-primary">₹{selectedDuration?.fee?.toLocaleString()}</span>
+                  </p>
                 </div>
               )}
 
@@ -230,7 +322,13 @@ const BookingPage = () => {
                     <div className="flex justify-between"><span>Doctor</span><span className="text-mc-text font-medium">{doctor.name}</span></div>
                     <div className="flex justify-between"><span>Date</span><span className="text-mc-text font-medium">{selectedDate.toLocaleDateString('en-IN')}</span></div>
                     <div className="flex justify-between"><span>Time</span><span className="text-mc-text font-medium">{selectedTime}</span></div>
-                    <div className="flex justify-between border-t border-mc-border pt-2 mt-2"><span className="font-medium text-mc-text">Consultation Fee</span><span className="font-heading text-mc-primary font-700">₹{doctor.consultation_fee?.toLocaleString()}</span></div>
+                    {hasMultipleDurations && (
+                      <div className="flex justify-between"><span>Duration</span><span className="text-mc-text font-medium">{selectedDuration?.label}</span></div>
+                    )}
+                    <div className="flex justify-between border-t border-mc-border pt-2 mt-2">
+                      <span className="font-medium text-mc-text">Consultation Fee</span>
+                      <span className="font-heading text-mc-primary font-700">₹{selectedDuration?.fee?.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
               )}

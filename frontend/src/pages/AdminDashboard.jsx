@@ -35,6 +35,7 @@ const EMPTY_FORM = {
   available_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
   start_time: '09:00', end_time: '17:00', slot_duration_minutes: 30,
   lunch_start: '13:00', lunch_end: '14:00',
+  fee_45min: '', fee_60min: '',
 };
 
 const AdminDashboard = () => {
@@ -102,6 +103,8 @@ const AdminDashboard = () => {
       slot_duration_minutes: doc.slot_duration_minutes || 30,
       lunch_start: doc.lunch_start || '',
       lunch_end: doc.lunch_end || '',
+      fee_45min: doc.fee_45min != null ? doc.fee_45min : '',
+      fee_60min: doc.fee_60min != null ? doc.fee_60min : '',
     });
     setFormError('');
     setShowModal(true);
@@ -119,6 +122,8 @@ const AdminDashboard = () => {
         slot_duration_minutes: parseInt(docForm.slot_duration_minutes) || 30,
         lunch_start: docForm.lunch_start || null,
         lunch_end: docForm.lunch_end || null,
+        fee_45min: docForm.fee_45min !== '' ? parseFloat(docForm.fee_45min) : null,
+        fee_60min: docForm.fee_60min !== '' ? parseFloat(docForm.fee_60min) : null,
       };
       if (editDoctor) {
         await api.put(`/doctors/${editDoctor._id}`, payload);
@@ -646,6 +651,38 @@ const AdminDashboard = () => {
                 <p className="text-[11px] text-mc-text-secondary mt-2 font-body">
                   Leave lunch fields blank for no break. Slots auto-generated from this schedule.
                 </p>
+              </div>
+
+              {/* Per-Duration Pricing */}
+              <div className="border-t border-mc-border pt-4">
+                <label className="block text-xs font-medium text-mc-text mb-1 font-body">Per-Duration Pricing (Optional)</label>
+                <p className="text-[11px] text-mc-text-secondary mb-3 font-body">
+                  Set separate fees for 45-min and 60-min sessions. Leave blank to use the default Consultation Fee for all durations.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Fee for 45 min (₹)</label>
+                    <input
+                      type="number" value={docForm.fee_45min}
+                      onChange={e => setDocForm(p => ({ ...p, fee_45min: e.target.value }))}
+                      placeholder="e.g. 1500"
+                      min="0"
+                      className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                      data-testid="doctor-form-fee_45min"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Fee for 60 min (₹)</label>
+                    <input
+                      type="number" value={docForm.fee_60min}
+                      onChange={e => setDocForm(p => ({ ...p, fee_60min: e.target.value }))}
+                      placeholder="e.g. 2000"
+                      min="0"
+                      className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                      data-testid="doctor-form-fee_60min"
+                    />
+                  </div>
+                </div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 btn-secondary text-sm py-3" data-testid="cancel-doctor-form">Cancel</button>

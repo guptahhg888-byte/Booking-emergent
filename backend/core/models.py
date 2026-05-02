@@ -25,6 +25,9 @@ class DoctorCreate(BaseModel):
     qualification: str
     experience_years: int
     consultation_fee: float = 2000.0
+    # Per-duration fees. If not set, falls back to consultation_fee.
+    fee_45min: Optional[float] = None
+    fee_60min: Optional[float] = None
     bio: Optional[str] = None
     image_url: Optional[str] = None
     available_days: List[str] = [
@@ -53,6 +56,7 @@ class AppointmentCreate(BaseModel):
     doctor_id: str
     appointment_date: str
     appointment_time: str
+    duration_minutes: Optional[int] = None   # 45 or 60 (None = use doctor default)
     notes: Optional[str] = None
 
 

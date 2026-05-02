@@ -27,7 +27,7 @@ const Navbar = () => {
             <div className="w-9 h-9 bg-mc-primary rounded-xl flex items-center justify-center transition-transform group-hover:scale-105">
               <Stethoscope size={20} className="text-white" strokeWidth={1.5} />
             </div>
-            <span className="font-heading font-700 text-xl text-mc-text">Medi<span className="text-mc-primary">Consult</span></span>
+            <span className="font-heading font-700 text-xl text-mc-text">Dr. Madhumati<span className="text-mc-primary">Singh</span></span>
           </Link>
 
           {/* Desktop Nav */}

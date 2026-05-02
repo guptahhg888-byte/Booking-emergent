@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Stethoscope, Calendar, CreditCard, Star, ArrowRight, CheckCircle, Users, Award, Clock } from 'lucide-react';
 import api from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [featuredDoctors, setFeaturedDoctors] = useState([]);
 
   useEffect(() => {
@@ -44,21 +46,23 @@ const LandingPage = () => {
               >
                 Book a Consultation <ArrowRight size={18} />
               </button>
-              <button
-                onClick={() => navigate('/register')}
-                className="flex items-center gap-2 border-2 border-white/40 text-white font-medium rounded-full px-8 py-4 hover:bg-white/10 transition-all"
-                data-testid="hero-get-started-btn"
-              >
-                Get Started Free
-              </button>
+              {!user && (
+                <button
+                  onClick={() => navigate('/register')}
+                  className="flex items-center gap-2 border-2 border-white/40 text-white font-medium rounded-full px-8 py-4 hover:bg-white/10 transition-all"
+                  data-testid="hero-get-started-btn"
+                >
+                  Get Started Free
+                </button>
+              )}
             </div>
           </div>
 
           {/* Stats Card */}
           <div className="hidden lg:grid grid-cols-2 gap-4 animate-fade-in">
             {[
-              { icon: <Users size={28} />, value: '100+', label: 'Verified Doctors' },
-              { icon: <Award size={28} />, value: '10K+', label: 'Happy Patients' },
+              { icon: <Award size={28} />, value: '36+', label: 'Year Experience' },
+              { icon: <Users size={28} />, value: '10K+', label: 'Happy Patients' },
               { icon: <Stethoscope size={28} />, value: '20+', label: 'Specializations' },
               { icon: <Star size={28} />, value: '4.8/5', label: 'Average Rating' },
             ].map((s, i) => (
@@ -77,7 +81,7 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <p className="text-sm uppercase tracking-[0.2em] font-medium text-mc-secondary mb-3">Simple Process</p>
-            <h2 className="font-heading text-4xl lg:text-5xl text-mc-text font-700">How MediConsult Works</h2>
+            <h2 className="font-heading text-4xl lg:text-5xl text-mc-text font-700">How Our Website Works</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[
@@ -192,9 +196,11 @@ const LandingPage = () => {
           <h2 className="font-heading text-4xl lg:text-5xl text-white font-700 mb-4">Ready to Consult a Specialist?</h2>
           <p className="text-white/80 text-lg mb-10">Join thousands of patients who trust MediConsult for their healthcare needs.</p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link to="/register" className="bg-white text-mc-primary font-medium rounded-full px-8 py-4 hover:bg-mc-bg transition-all hover:-translate-y-0.5 shadow-lg" data-testid="cta-register-btn">
-              Create Free Account
-            </Link>
+            {!user && (
+              <Link to="/register" className="bg-white text-mc-primary font-medium rounded-full px-8 py-4 hover:bg-mc-bg transition-all hover:-translate-y-0.5 shadow-lg" data-testid="cta-register-btn">
+                Create Free Account
+              </Link>
+            )}
             <Link to="/doctors" className="border-2 border-white/40 text-white font-medium rounded-full px-8 py-4 hover:bg-white/10 transition-all" data-testid="cta-find-doctor-btn">
               Browse Doctors
             </Link>

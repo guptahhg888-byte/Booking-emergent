@@ -29,6 +29,16 @@ async def create_appointment(body: AppointmentCreate, current_user: dict = Depen
     if existing:
         raise HTTPException(status_code=400, detail="This time slot is already booked")
     user_id = current_user["_id"]
+
+    # Resolve fee based on chosen duration
+    base_fee = doctor.get("consultation_fee", 2000)
+    if body.duration_minutes == 45 and doctor.get("fee_45min") is not None:
+        resolved_fee = doctor["fee_45min"]
+    elif body.duration_minutes == 60 and doctor.get("fee_60min") is not None:
+        resolved_fee = doctor["fee_60min"]
+    else:
+        resolved_fee = base_fee
+
     appt = {
         "user_id": user_id,
         "doctor_id": body.doctor_id,
@@ -38,10 +48,11 @@ async def create_appointment(body: AppointmentCreate, current_user: dict = Depen
         "patient_phone": current_user.get("phone"),
         "appointment_date": body.appointment_date,
         "appointment_time": body.appointment_time,
+        "duration_minutes": body.duration_minutes,
         "status": "pending_payment",
         "payment_status": "pending",
         "transaction_id": None,
-        "consultation_fee": doctor.get("consultation_fee", 2000),
+        "consultation_fee": resolved_fee,
         "notes": body.notes,
         "created_at": datetime.now(timezone.utc),
     }
