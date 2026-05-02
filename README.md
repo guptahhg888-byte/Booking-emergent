@@ -2,7 +2,7 @@
 
 **Medical Doctor Consultation Platform** with CRM, appointment booking, and real PhonePe v2 payments.
 
-Built with **FastAPI** (Python) + **React** + **MongoDB**, secured by **JWT** for email/password and **Emergent OAuth** for Google Social Login.
+Built with **FastAPI** (Python) + **React** + **MongoDB**, secured by **JWT** for email/password.
 
 ---
 
@@ -13,7 +13,7 @@ Built with **FastAPI** (Python) + **React** + **MongoDB**, secured by **JWT** fo
 | Frontend | React 19, Tailwind CSS, shadcn/ui, Recharts, React Router v6 |
 | Backend | FastAPI, Motor (async MongoDB), Pydantic v2 |
 | Database | MongoDB |
-| Auth | JWT (bcrypt) + Emergent Google OAuth |
+| Auth | JWT (bcrypt) |
 | Payments | PhonePe v2 OAuth (UAT + Production) |
 
 ---
@@ -79,7 +79,6 @@ PHONEPE_WEBHOOK_PASSWORD=""
 
 FRONTEND_URL="https://<your-domain>"
 BACKEND_URL="https://<your-domain>"
-EMERGENT_AUTH_SESSION_URL="https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
 ```
 
 Create `/app/frontend/.env`:
@@ -108,7 +107,6 @@ All routes are prefixed with `/api`.
 | POST | `/register` | — | `{email, password, name, phone?}` → `{token, user}` |
 | POST | `/login` | — | `{email, password}` → `{token, user}` |
 | GET | `/me` | Bearer | → current user |
-| POST | `/google` | — | `{session_id}` (from Emergent OAuth callback) → `{token, user}` |
 
 ### Doctors — `/api/doctors`
 

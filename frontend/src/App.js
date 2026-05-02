@@ -24,20 +24,7 @@ const RouteFallback = () => (
 );
 
 function App() {
-  // Intercept OAuth callback from Emergent Auth which may return to the origin root
-  // with `#session_id=...`. Render the callback page immediately.
-  if (typeof window !== 'undefined' && window.location.hash?.includes('session_id=')) {
-    return (
-      <AuthProvider>
-        <BrowserRouter>
-          <div className="min-h-screen bg-mc-bg">
-            <Navbar />
-            <AuthCallback />
-          </div>
-        </BrowserRouter>
-      </AuthProvider>
-    );
-  }
+
 
   return (
     <AuthProvider>

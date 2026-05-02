@@ -4,10 +4,9 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 
-from core.config import EMERGENT_AUTH_SESSION_URL
 from core.database import db
 from core.deps import get_current_user
-from core.models import RegisterRequest, LoginRequest, GoogleSessionRequest, ProfileUpdate
+from core.models import RegisterRequest, LoginRequest, ProfileUpdate
 from core.security import hash_password, verify_password, create_token
 from services.activity import log_activity
 
@@ -79,53 +78,4 @@ async def update_profile(body: ProfileUpdate, current_user: dict = Depends(get_c
     return user
 
 
-@router.post("/google")
-async def google_auth(body: GoogleSessionRequest):
-    """Exchange Emergent session_id for app JWT."""
-    # REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as c:
-            resp = await c.get(
-                EMERGENT_AUTH_SESSION_URL,
-                headers={"X-Session-ID": body.session_id},
-            )
-    except Exception as e:
-        logger.error(f"Emergent auth call failed: {e}")
-        raise HTTPException(status_code=502, detail="Auth provider unreachable")
 
-    if resp.status_code != 200:
-        raise HTTPException(status_code=401, detail="Invalid or expired Google session")
-
-    data = resp.json()
-    email = (data.get("email") or "").lower().strip()
-    name = data.get("name") or (email.split("@")[0] if email else "Google User")
-    picture = data.get("picture")
-    if not email:
-        raise HTTPException(status_code=400, detail="No email from provider")
-
-    existing = await db.users.find_one({"email": email})
-    if existing:
-        user_id = str(existing["_id"])
-        role = existing.get("role", "user")
-        update = {
-            "name": existing.get("name") or name,
-            "picture": picture,
-            "auth_provider": "google",
-        }
-        await db.users.update_one({"_id": existing["_id"]}, {"$set": update})
-        await log_activity(user_id, update["name"], "USER_LOGIN", "Google")
-    else:
-        doc = {
-            "email": email, "name": name, "picture": picture,
-            "role": "user", "auth_provider": "google",
-            "created_at": datetime.now(timezone.utc),
-        }
-        result = await db.users.insert_one(doc)
-        user_id = str(result.inserted_id)
-        role = "user"
-        await log_activity(user_id, name, "USER_REGISTERED", f"Google signup: {email}")
-
-    return {
-        "token": create_token(user_id, email, role),
-        "user": {"id": user_id, "email": email, "name": name, "role": role, "picture": picture},
-    }

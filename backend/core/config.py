@@ -50,7 +50,3 @@ else:
 # --- URLs ---
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8001")
-EMERGENT_AUTH_SESSION_URL = os.environ.get(
-    "EMERGENT_AUTH_SESSION_URL",
-    "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-)
