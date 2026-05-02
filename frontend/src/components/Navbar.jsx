@@ -1,14 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Menu, X, Stethoscope, ChevronDown, User, LayoutDashboard, LogOut, ShieldCheck, UserCog } from 'lucide-react';
+import { useCurrency } from '../contexts/CurrencyContext';
+import { Menu, X, Stethoscope, ChevronDown, User, LayoutDashboard, LogOut, ShieldCheck, UserCog, Globe } from 'lucide-react';
+
+const DIAL_TO_COUNTRY = {
+  '+91': 'IN', '+44': 'GB', '+49': 'DE', '+33': 'FR', '+971': 'AE',
+  '+61': 'AU', '+65': 'SG', '+64': 'NZ', '+81': 'JP', '+82': 'KR',
+  '+60': 'MY', '+92': 'PK', '+880': 'BD', '+94': 'LK', '+966': 'SA',
+  '+974': 'QA', '+1': 'US' // Defaults to US for +1
+};
 
 const Navbar = () => {
   const { user, logout } = useAuth();
+  const { countryCode, config, switchCountry, COUNTRY_CONFIG } = useCurrency();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
+  const currencyRef = useRef(null);
+
+  // Close currency dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (currencyRef.current && !currencyRef.current.contains(e.target)) {
+        setCurrencyOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Sync user's phone number country code to the currency
+  const syncedUserId = useRef(null);
+  useEffect(() => {
+    if (user && user._id !== syncedUserId.current && user.phone) {
+      syncedUserId.current = user._id;
+      
+      const sortedCodes = Object.keys(DIAL_TO_COUNTRY).sort((a, b) => b.length - a.length);
+      for (const code of sortedCodes) {
+        if (user.phone.startsWith(code)) {
+          const matchedCountry = DIAL_TO_COUNTRY[code];
+          if (matchedCountry && COUNTRY_CONFIG[matchedCountry]) {
+            switchCountry(matchedCountry);
+          }
+          break;
+        }
+      }
+    }
+    if (!user) {
+      syncedUserId.current = null;
+    }
+  }, [user, switchCountry, COUNTRY_CONFIG]);
 
   const handleLogout = () => {
     logout();
@@ -46,6 +90,42 @@ const Navbar = () => {
 
           {/* Auth / User */}
           <div className="hidden md:flex items-center gap-3">
+            {/* Currency Switcher */}
+            <div className="relative" ref={currencyRef}>
+              <button
+                onClick={() => setCurrencyOpen(o => !o)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-mc-border bg-mc-surface hover:border-mc-secondary transition-all text-sm font-body text-mc-text"
+                data-testid="currency-switcher-btn"
+              >
+                <span className="text-base leading-none">{config.flag}</span>
+                <span className="font-medium text-xs">{config.currency}</span>
+                <ChevronDown size={12} className={`text-mc-text-secondary transition-transform ${currencyOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {currencyOpen && (
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-mc-border overflow-hidden animate-fade-in z-50">
+                  <div className="px-3 py-2 border-b border-mc-border">
+                    <p className="text-[11px] text-mc-text-secondary font-body">Display currency</p>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {Object.entries(COUNTRY_CONFIG).map(([code, cfg]) => (
+                      <button
+                        key={code}
+                        onClick={() => { switchCountry(code); setCurrencyOpen(false); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-body hover:bg-mc-bg transition-colors text-left ${
+                          countryCode === code ? 'bg-mc-primary/10 text-mc-primary font-semibold' : 'text-mc-text'
+                        }`}
+                        data-testid={`currency-option-${code}`}
+                      >
+                        <span className="text-base">{cfg.flag}</span>
+                        <span className="flex-1">{cfg.name}</span>
+                        <span className="text-xs text-mc-text-secondary font-mono">{cfg.currency}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {user ? (
               <div className="relative">
                 <button

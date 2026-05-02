@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Star, Clock, ChevronRight, Filter } from 'lucide-react';
+import { Search, Star, Clock, ChevronRight, Filter, Globe } from 'lucide-react';
 import api from '../utils/api';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 const DoctorsPage = () => {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const { convertFee, countryCode, config, detecting } = useCurrency();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -69,6 +71,12 @@ const DoctorsPage = () => {
               <p className="text-mc-text-secondary text-sm font-body">
                 Showing <span className="font-medium text-mc-text">{doctors.length}</span> doctors
               </p>
+              {!detecting && countryCode !== 'IN' && (
+                <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-xs px-3 py-1.5 rounded-full font-body">
+                  <Globe size={12} />
+                  Prices shown in {config.currency} ({config.flag} {countryCode})
+                </div>
+              )}
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {doctors.map((doc, i) => (
@@ -103,7 +111,17 @@ const DoctorsPage = () => {
                     <div className="flex items-center justify-between mt-4 pt-3 border-t border-mc-border">
                       <div>
                         <p className="text-xs text-mc-text-secondary">Consult Fee</p>
-                        <p className="font-heading text-mc-primary font-600">₹{doc.consultation_fee?.toLocaleString()}</p>
+                        {(() => {
+                          const fee = convertFee(doc.consultation_fee);
+                          return (
+                            <>
+                              <p className="font-heading text-mc-primary font-600">{fee.display}</p>
+                              {fee.isInternational && (
+                                <p className="text-[10px] text-mc-text-secondary mt-0.5">₹{doc.consultation_fee?.toLocaleString()} + {fee.markupPct}% intl.</p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       <Link
                         to={`/doctors/${doc._id}`}

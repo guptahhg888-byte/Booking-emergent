@@ -3,10 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Stethoscope, Calendar, CreditCard, Star, ArrowRight, CheckCircle, Users, Award, Clock } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { convertFee } = useCurrency();
   const [featuredDoctors, setFeaturedDoctors] = useState([]);
 
   useEffect(() => {
@@ -135,7 +137,17 @@ const LandingPage = () => {
                       <span className="flex items-center gap-1"><Star size={13} className="text-amber-400 fill-amber-400" />{doc.rating}</span>
                     </div>
                     <div className="flex items-center justify-between mt-5 pt-4 border-t border-mc-border">
-                      <span className="font-heading text-mc-primary font-600">₹{doc.consultation_fee?.toLocaleString()}</span>
+                      {(() => {
+                        const fee = convertFee(doc.consultation_fee);
+                        return (
+                          <div>
+                            <span className="font-heading text-mc-primary font-600">{fee.display}</span>
+                            {fee.isInternational && (
+                              <p className="text-[10px] text-mc-text-secondary mt-0.5">₹{doc.consultation_fee?.toLocaleString()} + {fee.markupPct}% intl.</p>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <Link to={`/doctors/${doc._id}`} className="btn-primary text-sm px-4 py-2" data-testid={`book-doctor-${doc._id}`}>
                         Book Now
                       </Link>

@@ -1,7 +1,38 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Stethoscope, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Stethoscope, Eye, EyeOff, ArrowRight, ChevronDown } from 'lucide-react';
+
+// Major country dialing codes with flag emojis
+const COUNTRY_CODES = [
+  { code: '+91',  country: 'IN', flag: '🇮🇳', name: 'India' },
+  { code: '+1',   country: 'US', flag: '🇺🇸', name: 'United States' },
+  { code: '+44',  country: 'GB', flag: '🇬🇧', name: 'United Kingdom' },
+  { code: '+49',  country: 'DE', flag: '🇩🇪', name: 'Germany' },
+  { code: '+33',  country: 'FR', flag: '🇫🇷', name: 'France' },
+  { code: '+971', country: 'AE', flag: '🇦🇪', name: 'UAE' },
+  { code: '+61',  country: 'AU', flag: '🇦🇺', name: 'Australia' },
+  { code: '+1',   country: 'CA', flag: '🇨🇦', name: 'Canada' },
+  { code: '+65',  country: 'SG', flag: '🇸🇬', name: 'Singapore' },
+  { code: '+64',  country: 'NZ', flag: '🇳🇿', name: 'New Zealand' },
+  { code: '+81',  country: 'JP', flag: '🇯🇵', name: 'Japan' },
+  { code: '+82',  country: 'KR', flag: '🇰🇷', name: 'South Korea' },
+  { code: '+60',  country: 'MY', flag: '🇲🇾', name: 'Malaysia' },
+  { code: '+92',  country: 'PK', flag: '🇵🇰', name: 'Pakistan' },
+  { code: '+880', country: 'BD', flag: '🇧🇩', name: 'Bangladesh' },
+  { code: '+94',  country: 'LK', flag: '🇱🇰', name: 'Sri Lanka' },
+  { code: '+966', country: 'SA', flag: '🇸🇦', name: 'Saudi Arabia' },
+  { code: '+974', country: 'QA', flag: '🇶🇦', name: 'Qatar' },
+  { code: '+973', country: 'BH', flag: '🇧🇭', name: 'Bahrain' },
+  { code: '+968', country: 'OM', flag: '🇴🇲', name: 'Oman' },
+  { code: '+27',  country: 'ZA', flag: '🇿🇦', name: 'South Africa' },
+  { code: '+234', country: 'NG', flag: '🇳🇬', name: 'Nigeria' },
+  { code: '+20',  country: 'EG', flag: '🇪🇬', name: 'Egypt' },
+  { code: '+55',  country: 'BR', flag: '🇧🇷', name: 'Brazil' },
+  { code: '+52',  country: 'MX', flag: '🇲🇽', name: 'Mexico' },
+  { code: '+86',  country: 'CN', flag: '🇨🇳', name: 'China' },
+  { code: '+1868',country: 'TT', flag: '🌐', name: 'Other' },
+];
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -11,14 +42,22 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [phoneCode, setPhoneCode] = useState('+91');
+  const [showCodeDropdown, setShowCodeDropdown] = useState(false);
+  const [codeSearch, setCodeSearch] = useState('');
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' });
-
-
 
   const handleChange = (e) => {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }));
     setError('');
   };
+
+  const selectedCountry = COUNTRY_CODES.find(c => c.code === phoneCode) || COUNTRY_CODES[0];
+
+  const filteredCodes = COUNTRY_CODES.filter(c =>
+    c.name.toLowerCase().includes(codeSearch.toLowerCase()) ||
+    c.code.includes(codeSearch)
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +69,8 @@ const AuthPage = () => {
         navigate(data.user?.role === 'admin' ? '/admin' : '/dashboard');
       } else {
         if (!form.name.trim()) { setError('Name is required'); setLoading(false); return; }
-        await register(form.name, form.email, form.password, form.phone);
+        const fullPhone = form.phone ? `${phoneCode} ${form.phone}` : '';
+        await register(form.name, form.email, form.password, fullPhone);
         navigate('/doctors');
       }
     } catch (err) {
@@ -76,8 +116,6 @@ const AuthPage = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-8 space-y-4">
-
-
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 font-body" data-testid="auth-error">
                 {error}
@@ -125,12 +163,61 @@ const AuthPage = () => {
             {mode === 'register' && (
               <div>
                 <label className="block text-sm font-medium text-mc-text mb-1.5 font-body">Phone Number</label>
-                <input
-                  type="tel" name="phone" value={form.phone} onChange={handleChange}
-                  placeholder="+91 98765 43210"
-                  className="w-full px-4 py-3 border border-mc-border rounded-xl text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary focus:ring-2 focus:ring-mc-secondary/20 transition-all"
-                  data-testid="phone-input"
-                />
+                <div className="flex gap-2">
+                  {/* Country code picker */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => { setShowCodeDropdown(d => !d); setCodeSearch(''); }}
+                      className="h-full flex items-center gap-1.5 px-3 border border-mc-border rounded-xl bg-mc-bg text-mc-text text-sm font-body whitespace-nowrap hover:border-mc-secondary transition-colors"
+                      data-testid="phone-country-code-btn"
+                    >
+                      <span>{selectedCountry.flag}</span>
+                      <span className="font-medium">{phoneCode}</span>
+                      <ChevronDown size={13} className={`text-mc-text-secondary transition-transform ${showCodeDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showCodeDropdown && (
+                      <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-white border border-mc-border rounded-xl shadow-xl overflow-hidden animate-fade-in">
+                        <div className="p-2 border-b border-mc-border">
+                          <input
+                            type="text"
+                            placeholder="Search country..."
+                            value={codeSearch}
+                            onChange={e => setCodeSearch(e.target.value)}
+                            className="w-full px-3 py-2 text-xs border border-mc-border rounded-lg font-body focus:outline-none focus:border-mc-secondary"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {filteredCodes.map((c, i) => (
+                            <button
+                              key={`${c.country}-${i}`}
+                              type="button"
+                              onClick={() => { setPhoneCode(c.code); setShowCodeDropdown(false); }}
+                              className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-body hover:bg-mc-bg transition-colors text-left ${phoneCode === c.code && selectedCountry.country === c.country ? 'bg-mc-primary/10 text-mc-primary font-medium' : 'text-mc-text'}`}
+                            >
+                              <span className="text-base">{c.flag}</span>
+                              <span className="flex-1 truncate">{c.name}</span>
+                              <span className="text-mc-text-secondary text-xs font-mono">{c.code}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Phone number input */}
+                  <input
+                    type="tel" name="phone" value={form.phone} onChange={handleChange}
+                    placeholder="98765 43210"
+                    className="flex-1 min-w-0 px-4 py-3 border border-mc-border rounded-xl text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary focus:ring-2 focus:ring-mc-secondary/20 transition-all"
+                    data-testid="phone-input"
+                  />
+                </div>
+                <p className="text-[11px] text-mc-text-secondary mt-1 font-body">
+                  Saved as: {phoneCode} {form.phone || 'XXXXXXXXXX'}
+                </p>
               </div>
             )}
 

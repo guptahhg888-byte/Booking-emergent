@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Clock, Award, Calendar, ChevronLeft, CheckCircle, AlertCircle, ChevronDown } from 'lucide-react';
+import { Star, Clock, Award, Calendar, ChevronLeft, CheckCircle, AlertCircle, ChevronDown, Globe } from 'lucide-react';
 import { Calendar as CalendarComp } from '../components/ui/calendar';
 import { useAuth } from '../contexts/AuthContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import api from '../utils/api';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -39,6 +40,7 @@ const BookingPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { convertFee, countryCode, config, detecting } = useCurrency();
 
   const [doctor, setDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -173,33 +175,59 @@ const BookingPage = () => {
                 <div>
                   <p className="text-white/70 text-xs mb-3">Consultation Fee</p>
                   <div className="space-y-2">
-                    {durationOptions.map(opt => (
-                      <button
-                        key={opt.label}
-                        onClick={() => setSelectedDuration(opt)}
-                        className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all font-body text-sm ${
-                          selectedDuration?.label === opt.label
-                            ? 'bg-white text-mc-primary border-white font-semibold'
-                            : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
-                        }`}
-                        data-testid={`duration-option-${opt.minutes}`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <Clock size={14} />
-                          {opt.label}
-                        </span>
-                        <span className="font-heading font-700">₹{opt.fee?.toLocaleString()}</span>
-                      </button>
-                    ))}
+                    {durationOptions.map(opt => {
+                      const fee = convertFee(opt.fee);
+                      return (
+                        <button
+                          key={opt.label}
+                          onClick={() => setSelectedDuration(opt)}
+                          className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all font-body text-sm ${
+                            selectedDuration?.label === opt.label
+                              ? 'bg-white text-mc-primary border-white font-semibold'
+                              : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                          }`}
+                          data-testid={`duration-option-${opt.minutes}`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Clock size={14} />
+                            {opt.label}
+                          </span>
+                          <div className="text-right">
+                            <span className="font-heading font-700">{fee.display}</span>
+                            {fee.isInternational && (
+                              <p className="text-[10px] opacity-70">₹{opt.fee?.toLocaleString()}</p>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/70 text-xs">Consultation Fee</p>
-                    <p className="font-heading text-3xl text-white font-700">₹{selectedDuration?.fee?.toLocaleString()}</p>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white/70 text-xs">Consultation Fee</p>
+                      {(() => {
+                        const fee = convertFee(selectedDuration?.fee);
+                        return (
+                          <>
+                            <p className="font-heading text-3xl text-white font-700">{fee.display}</p>
+                            {fee.isInternational && (
+                              <p className="text-white/60 text-xs mt-0.5">₹{selectedDuration?.fee?.toLocaleString()} INR base</p>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                    <Award size={36} className="text-white/30" />
                   </div>
-                  <Award size={36} className="text-white/30" />
+                </div>
+              )}
+              {!detecting && countryCode !== 'IN' && (
+                <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-white/20 text-white/70 text-[11px]">
+                  <Globe size={11} />
+                  Shown in {config.currency} · {config.flag} Incl. {Math.round(config.markup * 100)}% intl. fee · Payment in ₹INR
                 </div>
               )}
             </div>
@@ -314,7 +342,6 @@ const BookingPage = () => {
                 />
               </div>
 
-              {/* Booking Summary */}
               {selectedDate && selectedTime && (
                 <div className="bg-mc-bg border border-mc-border rounded-xl p-4 mb-6" data-testid="booking-summary">
                   <h4 className="text-sm font-medium text-mc-text mb-2 font-body">Booking Summary</h4>
@@ -327,7 +354,19 @@ const BookingPage = () => {
                     )}
                     <div className="flex justify-between border-t border-mc-border pt-2 mt-2">
                       <span className="font-medium text-mc-text">Consultation Fee</span>
-                      <span className="font-heading text-mc-primary font-700">₹{selectedDuration?.fee?.toLocaleString()}</span>
+                      <div className="text-right">
+                        {(() => {
+                          const fee = convertFee(selectedDuration?.fee);
+                          return (
+                            <>
+                              <span className="font-heading text-mc-primary font-700">{fee.display}</span>
+                              {fee.isInternational && (
+                                <p className="text-[10px] text-mc-text-secondary mt-0.5">Charged in ₹{selectedDuration?.fee?.toLocaleString()} INR</p>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>
