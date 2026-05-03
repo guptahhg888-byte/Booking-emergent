@@ -1,6 +1,5 @@
 /**
- * Payment routes: initiate, status, simulate, webhook (PhonePe v2).
- * Equivalent of Python's routes/payments.py
+ * Payment routes: initiate, status, simulate, webhook (PhonePe Standard PG v1).
  */
 import { Router, Request, Response } from 'express';
 import { ObjectId } from 'mongodb';
@@ -10,7 +9,7 @@ import { db } from '../core/database';
 import { requireAuth } from '../core/middleware';
 import { validate, PaymentInitiateSchema } from '../core/schemas';
 import { logActivity } from '../services/activity';
-import { getPhonepeToken, verifyWebhookAuth, webhookAuthRequired } from '../services/phonepe';
+import { generateChecksum, verifyWebhookChecksum, verifyWebhookAuth, webhookAuthRequired } from '../services/phonepe';
 import { FRONTEND_URL, PHONEPE_ENV, PHONEPE_PAY_URL, PHONEPE_STATUS_BASE, PHONEPE_MERCHANT_ID } from '../core/config';
 
 const router = Router();
@@ -31,50 +30,52 @@ router.post('/initiate', requireAuth, validate(PaymentInitiateSchema), async (re
   if (appt['user_id'] !== user['_id']) { res.status(403).json({ detail: 'Access denied' }); return; }
 
   const amountPaise = Math.round(((appt['consultation_fee'] as number) ?? 2000) * 100);
-  const merchantOrderId = `MC${uuidv4().slice(0, 8).toUpperCase()}`;
+  const merchantOrderId = `MC${uuidv4().replace(/-/g, '').slice(0, 14).toUpperCase()}`;
   const txnId = merchantOrderId;
   const redirectUrl = `${FRONTEND_URL}/payment/status?txnId=${txnId}`;
 
   let checkoutUrl: string | null = null;
   let apiError: string | null = null;
 
-  const accessToken = await getPhonepeToken();
-  if (accessToken) {
-    try {
-      const payload = {
-        merchantId: PHONEPE_MERCHANT_ID,
-        merchantOrderId,
-        amount: amountPaise,
-        expireAfter: 1200,
-        metaInfo: {
-          udf1: user['_id'],
-          udf2: appt['doctor_name'] ?? '',
-          udf3: String(appt['_id']),
-        },
-        paymentFlow: {
-          type: 'PG_CHECKOUT',
-          message: `Consultation fee - ${appt['doctor_name'] ?? ''}`,
-          merchantUrls: { redirectUrl },
-        },
-      };
-      const resp = await axios.post(PHONEPE_PAY_URL, payload, {
-        headers: { 'Content-Type': 'application/json', Authorization: `O-Bearer ${accessToken}` },
-        timeout: 10000,
-        validateStatus: () => true,
-      });
-      if (resp.status === 200 || resp.status === 201) {
-        checkoutUrl = resp.data?.redirectUrl ?? resp.data?.data?.redirectUrl ?? null;
-      } else {
-        apiError = `${resp.status}: ${String(resp.data).slice(0, 200)}`;
-        console.warn('[PhonePe] pay init failed:', apiError);
+  try {
+    const payload = {
+      merchantId: PHONEPE_MERCHANT_ID,
+      merchantTransactionId: merchantOrderId,
+      merchantUserId: String(user['_id']),
+      amount: amountPaise,
+      redirectUrl: redirectUrl,
+      redirectMode: 'REDIRECT',
+      callbackUrl: `${FRONTEND_URL.replace('3000', '8000')}/api/payments/webhook`,
+      mobileNumber: (user['phone'] as string) ?? '9999999999',
+      paymentInstrument: {
+        type: 'PAY_PAGE'
       }
-    } catch (e) {
-      apiError = String(e);
-      console.warn('[PhonePe] API exception:', e);
+    };
+
+    const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+    // For V1 Pay, endpoint used in checksum is "/pg/v1/pay"
+    const checksum = generateChecksum(base64Payload, '/pg/v1/pay');
+
+    const resp = await axios.post(PHONEPE_PAY_URL, { request: base64Payload }, {
+      headers: { 'Content-Type': 'application/json', 'X-VERIFY': checksum },
+      timeout: 10000,
+      validateStatus: () => true,
+    });
+
+    if (resp.status === 200 && resp.data?.success) {
+      checkoutUrl = resp.data.data?.instrumentResponse?.redirectInfo?.url ?? null;
+    } else {
+      apiError = `${resp.status}: ${JSON.stringify(resp.data).slice(0, 200)}`;
+      console.warn('[PhonePe] pay init failed:', apiError);
     }
+  } catch (e: any) {
+    apiError = String(e.message);
+    console.warn('[PhonePe] API exception:', apiError);
   }
 
+  // Fallback to simulation only if real PhonePe fails entirely
   if (!checkoutUrl) {
+    console.warn('[PhonePe] Falling back to simulation page');
     checkoutUrl = `${FRONTEND_URL}/payment/simulate/${txnId}`;
   }
 
@@ -118,39 +119,43 @@ router.get('/status/:txnId', async (req: Request, res: Response) => {
   const safeT: Record<string, unknown> = { ...txn, _id: String(txn['_id']) };
 
   if (txn['payment_state'] === 'PENDING') {
-    const accessToken = await getPhonepeToken();
-    if (accessToken) {
-      try {
-        const url = `${PHONEPE_STATUS_BASE}/${txn['merchant_order_id']}/status?details=false&errorContext=true`;
-        const resp = await axios.get(url, {
-          headers: { 'Content-Type': 'application/json', Authorization: `O-Bearer ${accessToken}` },
-          timeout: 10000,
-          validateStatus: () => true,
-        });
-        if (resp.status === 200) {
-          const newState: string = resp.data?.state ?? resp.data?.data?.state ?? '';
-          if (['COMPLETED', 'FAILED'].includes(newState)) {
-            await db.transactions().updateOne(
+    try {
+      const merchantId = PHONEPE_MERCHANT_ID;
+      const endpoint = `/pg/v1/status/${merchantId}/${txn['merchant_order_id']}`;
+      const url = `${PHONEPE_STATUS_BASE}/${merchantId}/${txn['merchant_order_id']}`;
+      
+      const checksum = generateChecksum('', endpoint); // Status check uses empty payload
+
+      const resp = await axios.get(url, {
+        headers: { 'Content-Type': 'application/json', 'X-VERIFY': checksum, 'X-MERCHANT-ID': merchantId },
+        timeout: 10000,
+        validateStatus: () => true,
+      });
+
+      if (resp.status === 200 && resp.data?.success) {
+        const newState = resp.data.data?.state ?? '';
+        if (['COMPLETED', 'FAILED'].includes(newState)) {
+          await db.transactions().updateOne(
+            { transaction_id: txnId },
+            { $set: { payment_state: newState, updated_at: new Date() } }
+          );
+          safeT['payment_state'] = newState;
+          
+          if (newState === 'COMPLETED') {
+            await db.appointments().updateOne(
               { transaction_id: txnId },
-              { $set: { payment_state: newState, updated_at: new Date() } }
+              { $set: { status: 'confirmed', payment_status: 'paid' } }
             );
-            safeT['payment_state'] = newState;
-            if (newState === 'COMPLETED') {
-              await db.appointments().updateOne(
-                { transaction_id: txnId },
-                { $set: { status: 'confirmed', payment_status: 'paid' } }
-              );
-            } else {
-              await db.appointments().updateOne(
-                { transaction_id: txnId },
-                { $set: { status: 'cancelled', payment_status: 'failed' } }
-              );
-            }
+          } else {
+            await db.appointments().updateOne(
+              { transaction_id: txnId },
+              { $set: { status: 'cancelled', payment_status: 'failed' } }
+            );
           }
         }
-      } catch (e) {
-        console.warn('[PhonePe] status check failed:', e);
       }
+    } catch (e) {
+      console.warn('[PhonePe] status check failed:', e);
     }
   }
   res.json(safeT);
@@ -212,44 +217,43 @@ router.post('/simulate/:txnId/failure', async (req: Request, res: Response) => {
 // ─── POST /payments/webhook ───────────────────────────────────────────────────
 
 router.post('/webhook', async (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization ?? '';
-  if (webhookAuthRequired() && !verifyWebhookAuth(authHeader)) {
-    console.warn('[PhonePe] Webhook rejected: invalid Authorization signature');
-    res.status(401).json({ detail: 'Invalid webhook signature' });
-    return;
-  }
-  if (!webhookAuthRequired()) {
-    console.warn('[PhonePe] Webhook auth DISABLED (dev mode). Set PHONEPE_WEBHOOK_USERNAME/PASSWORD before production.');
-  }
-
+  const xVerify = req.headers['x-verify'] as string;
+  
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let body: Record<string, any> = req.body ?? {};
 
-    // Legacy base64-wrapped payload support
+    // Standard PG Checkout base64 response
     if (body['response'] && typeof body['response'] === 'string') {
+      const base64Body = body['response'];
+      
+      // Verify signature
+      if (xVerify && !verifyWebhookChecksum(base64Body, xVerify)) {
+        console.warn('[PhonePe] Webhook rejected: invalid X-VERIFY checksum');
+        res.status(401).json({ detail: 'Invalid webhook signature' });
+        return;
+      }
+      
       try {
-        const decoded = Buffer.from(body['response'], 'base64').toString('utf-8');
+        const decoded = Buffer.from(base64Body, 'base64').toString('utf-8');
         body = JSON.parse(decoded);
       } catch { /* ignore */ }
+    } else if (webhookAuthRequired() && !verifyWebhookAuth(req.headers.authorization ?? '')) {
+      // Legacy basic auth fallback
+      console.warn('[PhonePe] Webhook rejected: invalid Basic Auth signature');
+      res.status(401).json({ detail: 'Invalid webhook signature' });
+      return;
     }
 
-    const event: string = body['event'] ?? '';
-    const payload: Record<string, unknown> = body['payload'] ?? body['data'] ?? {};
+    const payload: Record<string, unknown> = body['data'] ?? body['payload'] ?? body;
     const merchantOrderId: string =
-      (payload['merchantOrderId'] as string) ?? (payload['merchantTransactionId'] as string) ?? '';
-    const state = String(payload['state'] ?? '').toUpperCase();
+      (payload['merchantTransactionId'] as string) ?? (payload['merchantOrderId'] as string) ?? '';
+    const state = String(payload['state'] ?? payload['code'] ?? '').toUpperCase();
 
     if (!merchantOrderId) { res.json({ status: 'ignored' }); return; }
 
-    const isSuccess =
-      state === 'COMPLETED' ||
-      event.toLowerCase().includes('completed') ||
-      event.toLowerCase().includes('success');
-    const isFailure =
-      ['FAILED', 'CANCELLED'].includes(state) ||
-      event.toLowerCase().includes('failed') ||
-      event.toLowerCase().includes('cancel');
+    const isSuccess = state === 'COMPLETED' || state === 'PAYMENT_SUCCESS';
+    const isFailure = ['FAILED', 'PAYMENT_ERROR'].includes(state);
 
     if (isSuccess) {
       await db.transactions().updateOne(

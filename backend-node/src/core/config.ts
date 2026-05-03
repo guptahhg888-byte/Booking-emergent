@@ -30,32 +30,25 @@ export const ADMIN_PASSWORD = getEnv('ADMIN_PASSWORD', 'Admin@123');
 
 // --- PhonePe v2 OAuth ---
 export const PHONEPE_ENV = getEnv('PHONEPE_ENV', 'SANDBOX').toUpperCase();
-export const PHONEPE_MERCHANT_ID = getEnv('PHONEPE_MERCHANT_ID', '');
-export const PHONEPE_CLIENT_ID = getEnv('PHONEPE_CLIENT_ID', '');
-export const PHONEPE_CLIENT_VERSION = getEnv('PHONEPE_CLIENT_VERSION', '1');
-export const PHONEPE_CLIENT_SECRET = getEnv('PHONEPE_CLIENT_SECRET', '');
-
-const PHONEPE_UAT_BASE = getEnv('PHONEPE_UAT_BASE', 'https://api-preprod.phonepe.com/apis/pg-sandbox');
-const PHONEPE_PROD_BASE = getEnv('PHONEPE_PROD_BASE', 'https://api.phonepe.com/apis/pg');
-const PHONEPE_PROD_AUTH_BASE = getEnv('PHONEPE_PROD_AUTH_BASE', 'https://api.phonepe.com/apis/identity-manager');
+export const PHONEPE_MERCHANT_ID = getEnv('PHONEPE_MERCHANT_ID', 'PGTESTPAYUAT86');
+export const PHONEPE_SALT_KEY = getEnv('PHONEPE_SALT_KEY', '96434309-7796-489d-8924-ab56988a6076');
+export const PHONEPE_SALT_INDEX = getEnv('PHONEPE_SALT_INDEX', '1');
 
 export const PHONEPE_WEBHOOK_USERNAME = getEnv('PHONEPE_WEBHOOK_USERNAME', '');
 export const PHONEPE_WEBHOOK_PASSWORD = getEnv('PHONEPE_WEBHOOK_PASSWORD', '');
 
-export const PHONEPE_AUTH_URL =
-  PHONEPE_ENV === 'PRODUCTION'
-    ? `${PHONEPE_PROD_AUTH_BASE}/v1/oauth/token`
-    : `${PHONEPE_UAT_BASE}/v1/oauth/token`;
+const PHONEPE_UAT_BASE = getEnv('PHONEPE_UAT_BASE', 'https://api-preprod.phonepe.com/apis/pg-sandbox');
+const PHONEPE_PROD_BASE = getEnv('PHONEPE_PROD_BASE', 'https://api.phonepe.com/apis/pg');
 
 export const PHONEPE_PAY_URL =
   PHONEPE_ENV === 'PRODUCTION'
-    ? `${PHONEPE_PROD_BASE}/checkout/v2/pay`
-    : `${PHONEPE_UAT_BASE}/checkout/v2/pay`;
+    ? `${PHONEPE_PROD_BASE}/v1/pay`
+    : `${PHONEPE_UAT_BASE}/pg/v1/pay`;
 
 export const PHONEPE_STATUS_BASE =
   PHONEPE_ENV === 'PRODUCTION'
-    ? `${PHONEPE_PROD_BASE}/checkout/v2/order`
-    : `${PHONEPE_UAT_BASE}/checkout/v2/order`;
+    ? `${PHONEPE_PROD_BASE}/v1/status`
+    : `${PHONEPE_UAT_BASE}/pg/v1/status`;
 
 // --- URLs ---
 export const FRONTEND_URL = getEnv('FRONTEND_URL', 'http://localhost:3000');

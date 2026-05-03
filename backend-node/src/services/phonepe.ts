@@ -1,92 +1,49 @@
 /**
- * PhonePe v2 OAuth: token management + webhook signature validation.
- * Equivalent of Python's services/phonepe.py
+ * PhonePe Standard PG Checkout integration (V1)
+ * Uses base64 payloads and X-VERIFY checksums.
  */
 import crypto from 'crypto';
-import axios from 'axios';
-import {
-  PHONEPE_AUTH_URL,
-  PHONEPE_CLIENT_ID,
-  PHONEPE_CLIENT_SECRET,
-  PHONEPE_CLIENT_VERSION,
-  PHONEPE_WEBHOOK_USERNAME,
-  PHONEPE_WEBHOOK_PASSWORD,
-} from '../core/config';
+import { PHONEPE_SALT_KEY, PHONEPE_SALT_INDEX, PHONEPE_WEBHOOK_USERNAME, PHONEPE_WEBHOOK_PASSWORD, PHONEPE_ENV } from '../core/config';
 
-interface TokenCache {
-  access_token: string | null;
-  expires_at: Date | null;
-}
+/**
+ * Generate X-VERIFY checksum for PhonePe Standard PG.
+ * Formula: sha256(base64Payload + endpoint + saltKey) + "###" + saltIndex
+ */
+export const generateChecksum = (base64Payload: string, endpoint: string): string => {
+  const str = base64Payload + endpoint + PHONEPE_SALT_KEY;
+  const sha256 = crypto.createHash('sha256').update(str).digest('hex');
+  return `${sha256}###${PHONEPE_SALT_INDEX}`;
+};
 
-const tokenCache: TokenCache = { access_token: null, expires_at: null };
+/**
+ * Validates incoming webhook X-VERIFY header.
+ * Formula: sha256(base64Body + saltKey) + "###" + saltIndex
+ */
+export const verifyWebhookChecksum = (base64Body: string, xVerifyHeader: string): boolean => {
+  const expectedStr = base64Body + PHONEPE_SALT_KEY;
+  const expectedSha256 = crypto.createHash('sha256').update(expectedStr).digest('hex');
+  const expectedChecksum = `${expectedSha256}###${PHONEPE_SALT_INDEX}`;
+  return xVerifyHeader === expectedChecksum;
+};
 
-export const getPhonepeToken = async (): Promise<string | null> => {
-  const now = new Date();
-
-  // Return cached token if still valid (with 2 min buffer)
-  if (
-    tokenCache.access_token &&
-    tokenCache.expires_at &&
-    now < new Date(tokenCache.expires_at.getTime() - 2 * 60 * 1000)
-  ) {
-    return tokenCache.access_token;
-  }
-
-  if (!PHONEPE_CLIENT_ID || !PHONEPE_CLIENT_SECRET) {
-    return null;
-  }
-
-  try {
-    const params = new URLSearchParams({
-      client_id: PHONEPE_CLIENT_ID,
-      client_version: PHONEPE_CLIENT_VERSION,
-      client_secret: PHONEPE_CLIENT_SECRET,
-      grant_type: 'client_credentials',
-    });
-
-    const resp = await axios.post(PHONEPE_AUTH_URL, params.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 10000,
-    });
-
-    const body = resp.data;
-    const access_token: string = body.access_token;
-    const expires_at_epoch: number | undefined = body.expires_at;
-
-    if (!access_token) return null;
-
-    tokenCache.access_token = access_token;
-    tokenCache.expires_at = expires_at_epoch
-      ? new Date(expires_at_epoch * 1000)
-      : new Date(now.getTime() + 50 * 60 * 1000);
-
-    return access_token;
-  } catch (err: any) {
-    const status = err.response?.status;
-    const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    console.warn(`[PhonePe] Token fetch error: ${status} - ${msg}`);
-    return null;
-  }
+// Kept for legacy compatibility if Basic Auth was also configured
+export const webhookAuthRequired = (): boolean => {
+  return PHONEPE_ENV === 'PRODUCTION' || (!!PHONEPE_WEBHOOK_USERNAME && !!PHONEPE_WEBHOOK_PASSWORD);
 };
 
 export const verifyWebhookAuth = (authorizationHeader: string): boolean => {
   if (!PHONEPE_WEBHOOK_USERNAME || !PHONEPE_WEBHOOK_PASSWORD) {
-    return true; // dev mode — accept all
+    return true; // dev mode — accept all if not configured
   }
-  if (!authorizationHeader) return false;
-
-  const expected = crypto
-    .createHash('sha256')
-    .update(`${PHONEPE_WEBHOOK_USERNAME}:${PHONEPE_WEBHOOK_PASSWORD}`)
-    .digest('hex');
-
-  let provided = authorizationHeader.trim();
-  if (provided.toLowerCase().startsWith('sha256 ')) {
-    provided = provided.slice(7).trim();
+  const prefix = 'Basic ';
+  if (!authorizationHeader.startsWith(prefix)) return false;
+  
+  try {
+    const b64 = authorizationHeader.slice(prefix.length);
+    const decoded = Buffer.from(b64, 'base64').toString('utf-8');
+    const [u, p] = decoded.split(':');
+    return u === PHONEPE_WEBHOOK_USERNAME && p === PHONEPE_WEBHOOK_PASSWORD;
+  } catch {
+    return false;
   }
-  return provided.toLowerCase() === expected.toLowerCase();
-};
-
-export const webhookAuthRequired = (): boolean => {
-  return Boolean(PHONEPE_WEBHOOK_USERNAME && PHONEPE_WEBHOOK_PASSWORD);
 };
