@@ -1,32 +1,64 @@
 /**
- * PhonePe Standard PG Checkout integration (V1)
- * Uses base64 payloads and X-VERIFY checksums.
+ * PhonePe service integration (V2 OAuth API).
+ * Equivalent of Python's services/phonepe.py
  */
-import crypto from 'crypto';
-import { PHONEPE_SALT_KEY, PHONEPE_SALT_INDEX, PHONEPE_WEBHOOK_USERNAME, PHONEPE_WEBHOOK_PASSWORD, PHONEPE_ENV } from '../core/config';
+import axios from 'axios';
+import {
+  PHONEPE_CLIENT_ID,
+  PHONEPE_CLIENT_SECRET,
+  PHONEPE_CLIENT_VERSION,
+  PHONEPE_AUTH_URL,
+  PHONEPE_WEBHOOK_USERNAME,
+  PHONEPE_WEBHOOK_PASSWORD,
+  PHONEPE_ENV,
+} from '../core/config';
 
-/**
- * Generate X-VERIFY checksum for PhonePe Standard PG.
- * Formula: sha256(base64Payload + endpoint + saltKey) + "###" + saltIndex
- */
-export const generateChecksum = (base64Payload: string, endpoint: string): string => {
-  const str = base64Payload + endpoint + PHONEPE_SALT_KEY;
-  const sha256 = crypto.createHash('sha256').update(str).digest('hex');
-  return `${sha256}###${PHONEPE_SALT_INDEX}`;
+let cachedToken: string | null = null;
+let tokenExpiresAt: Date | null = null;
+
+export const getPhonepeToken = async (): Promise<string | null> => {
+  if (!PHONEPE_CLIENT_ID || !PHONEPE_CLIENT_SECRET) {
+    console.warn('[PhonePe] Credentials missing');
+    return null;
+  }
+
+  const now = new Date();
+  if (cachedToken && tokenExpiresAt && now < tokenExpiresAt) {
+    return cachedToken;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      client_id: PHONEPE_CLIENT_ID,
+      client_version: PHONEPE_CLIENT_VERSION,
+      client_secret: PHONEPE_CLIENT_SECRET,
+      grant_type: 'client_credentials',
+    });
+
+    const resp = await axios.post(PHONEPE_AUTH_URL, params.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 10000,
+    });
+
+    const data = resp.data;
+    const access_token = data.access_token;
+    if (!access_token) return null;
+
+    cachedToken = access_token;
+    const expiresIn = data.expires_in; // usually seconds
+    tokenExpiresAt = expiresIn
+      ? new Date(now.getTime() + expiresIn * 1000 - 60000)
+      : new Date(now.getTime() + 50 * 60 * 1000);
+
+    return access_token;
+  } catch (err: any) {
+    const status = err.response?.status;
+    const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.warn(`[PhonePe] Token fetch error: ${status} - ${msg}`);
+    return null;
+  }
 };
 
-/**
- * Validates incoming webhook X-VERIFY header.
- * Formula: sha256(base64Body + saltKey) + "###" + saltIndex
- */
-export const verifyWebhookChecksum = (base64Body: string, xVerifyHeader: string): boolean => {
-  const expectedStr = base64Body + PHONEPE_SALT_KEY;
-  const expectedSha256 = crypto.createHash('sha256').update(expectedStr).digest('hex');
-  const expectedChecksum = `${expectedSha256}###${PHONEPE_SALT_INDEX}`;
-  return xVerifyHeader === expectedChecksum;
-};
-
-// Kept for legacy compatibility if Basic Auth was also configured
 export const webhookAuthRequired = (): boolean => {
   return PHONEPE_ENV === 'PRODUCTION' || (!!PHONEPE_WEBHOOK_USERNAME && !!PHONEPE_WEBHOOK_PASSWORD);
 };
