@@ -10,6 +10,7 @@ import { db } from '../core/database';
 import { requireAuth } from '../core/middleware';
 import { validate, PaymentInitiateSchema } from '../core/schemas';
 import { logActivity } from '../services/activity';
+import { handlePaymentSuccessNotification } from '../services/email';
 import { getPhonepeToken, verifyWebhookAuth, webhookAuthRequired } from '../services/phonepe';
 import { FRONTEND_URL, PHONEPE_ENV, PHONEPE_PAY_URL, PHONEPE_STATUS_BASE, PHONEPE_MERCHANT_ID } from '../core/config';
 
@@ -141,6 +142,20 @@ router.get('/status/:txnId', async (req: Request, res: Response) => {
                 { transaction_id: txnId },
                 { $set: { status: 'confirmed', payment_status: 'paid' } }
               );
+              // Send confirmation email + create Google Meet
+              const apptForEmail = await db.appointments().findOne({ transaction_id: txnId }) as Record<string, unknown> | null;
+              if (apptForEmail) {
+                handlePaymentSuccessNotification({
+                  userEmail: (apptForEmail['patient_email'] as string) ?? '',
+                  userName: (apptForEmail['patient_name'] as string) ?? '',
+                  doctorName: (apptForEmail['doctor_name'] as string) ?? '',
+                  appointmentDate: (apptForEmail['appointment_date'] as string) ?? '',
+                  appointmentTime: (apptForEmail['appointment_time'] as string) ?? '',
+                  durationMinutes: (apptForEmail['duration_minutes'] as number) ?? 30,
+                  consultationFee: ((txn['amount'] as number) ?? 0) / 100,
+                  transactionId: txnId,
+                }).catch((err) => console.error('[Email] Notification failed:', err));
+              }
             } else {
               await db.appointments().updateOne(
                 { transaction_id: txnId },
@@ -188,6 +203,17 @@ router.post('/simulate/:txnId/success', async (req: Request, res: Response) => {
       'PAYMENT_SUCCESS',
       `Appointment confirmed for ${appt['doctor_name'] ?? ''}`
     );
+    // Send confirmation email + create Google Meet
+    handlePaymentSuccessNotification({
+      userEmail: (appt['patient_email'] as string) ?? '',
+      userName: (appt['patient_name'] as string) ?? '',
+      doctorName: (appt['doctor_name'] as string) ?? '',
+      appointmentDate: (appt['appointment_date'] as string) ?? '',
+      appointmentTime: (appt['appointment_time'] as string) ?? '',
+      durationMinutes: (appt['duration_minutes'] as number) ?? 30,
+      consultationFee: ((txn['amount'] as number) ?? 0) / 100,
+      transactionId: txnId,
+    }).catch((err) => console.error('[Email] Notification failed:', err));
   }
   res.json({ message: 'Payment simulated successfully', transaction_id: txnId, provider_reference_id: provRef });
 });
@@ -261,6 +287,21 @@ router.post('/webhook', async (req: Request, res: Response) => {
         { transaction_id: merchantOrderId },
         { $set: { status: 'confirmed', payment_status: 'paid' } }
       );
+      // Send confirmation email + create Google Meet
+      const whAppt = await db.appointments().findOne({ transaction_id: merchantOrderId }) as Record<string, unknown> | null;
+      const whTxn = await db.transactions().findOne({ merchant_order_id: merchantOrderId }) as Record<string, unknown> | null;
+      if (whAppt) {
+        handlePaymentSuccessNotification({
+          userEmail: (whAppt['patient_email'] as string) ?? '',
+          userName: (whAppt['patient_name'] as string) ?? '',
+          doctorName: (whAppt['doctor_name'] as string) ?? '',
+          appointmentDate: (whAppt['appointment_date'] as string) ?? '',
+          appointmentTime: (whAppt['appointment_time'] as string) ?? '',
+          durationMinutes: (whAppt['duration_minutes'] as number) ?? 30,
+          consultationFee: ((whTxn?.['amount'] as number) ?? 0) / 100,
+          transactionId: merchantOrderId,
+        }).catch((err) => console.error('[Email] Webhook notification failed:', err));
+      }
     } else if (isFailure) {
       await db.transactions().updateOne(
         { merchant_order_id: merchantOrderId },

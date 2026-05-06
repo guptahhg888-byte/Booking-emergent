@@ -63,3 +63,17 @@ export const PORT = parseInt(getEnv('PORT', '8000'), 10);
 // --- Admin ---
 export const ADMIN_EMAIL = getEnv('ADMIN_EMAIL', 'admin@platform.com');
 export const ADMIN_PASSWORD = getEnv('ADMIN_PASSWORD', 'Admin@123');
+
+// --- Google OAuth (for Calendar/Meet) ---
+export const GOOGLE_CLIENT_ID = getEnv('GOOGLE_CLIENT_ID', '');
+export const GOOGLE_CLIENT_SECRET = getEnv('GOOGLE_CLIENT_SECRET', '');
+export const GOOGLE_REFRESH_TOKEN = getEnv('GOOGLE_REFRESH_TOKEN', '');
+export const GOOGLE_CALENDAR_EMAIL = getEnv('GOOGLE_CALENDAR_EMAIL', 'madhumati.singh@gmail.com');
+
+// --- Email (SMTP via Gmail) ---
+export const SMTP_EMAIL = getEnv('SMTP_EMAIL', '');
+export const SMTP_PASSWORD = getEnv('SMTP_PASSWORD', '');
+
+// --- Booking recipients ---
+export const CONSULTANT_EMAIL = 'madhumati.singh@gmail.com';
+export const CC_EMAILS = ['dreamerspy75@gmail.com', 'gmukul600@gmail.com'];
