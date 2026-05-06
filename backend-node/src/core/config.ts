@@ -76,4 +76,4 @@ export const SMTP_PASSWORD = getEnv('SMTP_PASSWORD', '');
 
 // --- Booking recipients ---
 export const CONSULTANT_EMAIL = 'madhumati.singh@gmail.com';
-export const CC_EMAILS = ['dreamerspy75@gmail.com', 'gmukul600@gmail.com'];
+export const CC_EMAILS = ['spydreamer75@gmail.com', 'gmukul600@gmail.com'];
