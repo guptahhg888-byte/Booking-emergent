@@ -78,7 +78,6 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
       calendarId: 'primary',
       conferenceDataVersion: 1,
       sendUpdates: 'all',
-      sendNotifications: true,
       requestBody: {
         summary: '1v1 with madhumati ma\'am',
         description: `Consultation session booked via MediConsult platform.\n\nAttendee: ${userEmail}\nDate: ${appointmentDate}\nTime: ${appointmentTime}\nDuration: ${durationMinutes} minutes`,
@@ -115,8 +114,11 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
     return meetLink ?? null;
   } catch (error: any) {
     console.error('[Meet] Failed to create Google Meet event:', error.message);
-    if (error.response?.data) {
-      console.error('[Meet] API error details:', JSON.stringify(error.response.data));
+    if (error.errors) {
+      console.error('[Meet] API errors:', JSON.stringify(error.errors));
+    }
+    if (error.code) {
+      console.error('[Meet] Error code:', error.code, 'Status:', error.status);
     }
     return null;
   }
