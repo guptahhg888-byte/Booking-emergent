@@ -72,13 +72,16 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
     const startTime = parseTimeToISO(appointmentDate, appointmentTime);
     const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
 
+    console.info(`[Meet] Creating event: date=${appointmentDate}, time=${appointmentTime}, start=${startTime.toISOString()}, end=${endTime.toISOString()}`);
+
     const event = await calendar.events.insert({
-      calendarId: GOOGLE_CALENDAR_EMAIL || 'primary',
+      calendarId: 'primary',
       conferenceDataVersion: 1,
       sendUpdates: 'all',
+      sendNotifications: true,
       requestBody: {
         summary: '1v1 with madhumati ma\'am',
-        description: 'Consultation session booked via MediConsult platform.',
+        description: `Consultation session booked via MediConsult platform.\n\nAttendee: ${userEmail}\nDate: ${appointmentDate}\nTime: ${appointmentTime}\nDuration: ${durationMinutes} minutes`,
         start: {
           dateTime: startTime.toISOString(),
           timeZone: 'Asia/Kolkata',
@@ -92,18 +95,14 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
           { email: CONSULTANT_EMAIL },
           ...CC_EMAILS.map((email) => ({ email })),
         ],
+        guestsCanModify: false,
+        guestsCanInviteOthers: true,
+        guestsCanSeeOtherGuests: true,
         conferenceData: {
           createRequest: {
-            requestId: `meet-${Date.now()}`,
+            requestId: `meet-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             conferenceSolutionKey: { type: 'hangoutsMeet' },
           },
-        },
-        reminders: {
-          useDefault: false,
-          overrides: [
-            { method: 'email', minutes: 30 },
-            { method: 'popup', minutes: 10 },
-          ],
         },
       },
     });
@@ -112,10 +111,13 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
       (ep) => ep.entryPointType === 'video'
     )?.uri;
 
-    console.info(`[Meet] Created event: ${event.data.htmlLink}, Meet: ${meetLink}`);
+    console.info(`[Meet] Created event: ${event.data.htmlLink}, Meet: ${meetLink}, Status: ${event.status}`);
     return meetLink ?? null;
   } catch (error: any) {
     console.error('[Meet] Failed to create Google Meet event:', error.message);
+    if (error.response?.data) {
+      console.error('[Meet] API error details:', JSON.stringify(error.response.data));
+    }
     return null;
   }
 }
