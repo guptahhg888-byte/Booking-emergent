@@ -3,8 +3,9 @@
  * Equivalent of Python's core/config.py
  */
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 function getEnv(key: string, defaultValue = ''): string {
   return process.env[key] || defaultValue;
@@ -76,4 +77,4 @@ export const SMTP_PASSWORD = getEnv('SMTP_PASSWORD', '');
 
 // --- Booking recipients ---
 export const CONSULTANT_EMAIL = 'madhumati.singh@gmail.com';
-export const CC_EMAILS = ['spydreamer75@gmail.com', 'gmukul600@gmail.com'];
+export const CC_EMAILS = ['dreamerspy75@gmail.com', 'gmukul600@gmail.com'];

@@ -75,6 +75,7 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
     const event = await calendar.events.insert({
       calendarId: GOOGLE_CALENDAR_EMAIL || 'primary',
       conferenceDataVersion: 1,
+      sendUpdates: 'all',
       requestBody: {
         summary: '1v1 with madhumati ma\'am',
         description: 'Consultation session booked via MediConsult platform.',
@@ -129,11 +130,14 @@ function createTransporter(): nodemailer.Transporter | null {
 
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
     auth: {
       user: SMTP_EMAIL,
       pass: SMTP_PASSWORD,
+    },
+    tls: {
+      rejectUnauthorized: false,
     },
   });
 }
