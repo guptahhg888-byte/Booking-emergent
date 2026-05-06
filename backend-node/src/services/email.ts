@@ -118,21 +118,44 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
   }
 }
 
-// ─── Email transporter (Gmail SMTP) ──────────────────────────────────────────
+// ─── Email transporter (Gmail via OAuth2 or App Password fallback) ───────────
 
-function createTransporter() {
-  if (!SMTP_EMAIL || !SMTP_PASSWORD) {
-    console.warn('[Email] SMTP credentials not configured');
-    return null;
+async function createTransporter(): Promise<nodemailer.Transporter | null> {
+  // Prefer OAuth2 (works reliably from cloud/production servers)
+  if (SMTP_EMAIL && GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REFRESH_TOKEN) {
+    try {
+      const { token } = await oauth2Client.getAccessToken();
+      if (token) {
+        return nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            type: 'OAuth2',
+            user: SMTP_EMAIL,
+            clientId: GOOGLE_CLIENT_ID,
+            clientSecret: GOOGLE_CLIENT_SECRET,
+            refreshToken: GOOGLE_REFRESH_TOKEN,
+            accessToken: token,
+          },
+        });
+      }
+    } catch (err: any) {
+      console.warn('[Email] OAuth2 access token failed, trying app password fallback:', err.message);
+    }
   }
 
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: SMTP_EMAIL,
-      pass: SMTP_PASSWORD,
-    },
-  });
+  // Fallback to app password (works locally, often blocked in production)
+  if (SMTP_EMAIL && SMTP_PASSWORD) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: SMTP_EMAIL,
+        pass: SMTP_PASSWORD,
+      },
+    });
+  }
+
+  console.warn('[Email] No email credentials configured (need SMTP_EMAIL + either OAuth2 creds or SMTP_PASSWORD)');
+  return null;
 }
 
 // ─── Send booking confirmation email ─────────────────────────────────────────
@@ -162,7 +185,7 @@ export async function sendBookingConfirmationEmail(params: BookingEmailParams): 
     transactionId,
   } = params;
 
-  const transporter = createTransporter();
+  const transporter = await createTransporter();
   if (!transporter) {
     console.warn('[Email] Transporter not available, skipping email');
     return false;
