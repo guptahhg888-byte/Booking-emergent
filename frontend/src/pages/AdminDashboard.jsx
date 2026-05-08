@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   Users, Stethoscope, Calendar, CreditCard, Activity, Plus, Edit, Trash2,
-  TrendingUp, CheckCircle, XCircle, Clock, AlertCircle, ShieldCheck, RefreshCw
+  TrendingUp, CheckCircle, XCircle, Clock, AlertCircle, ShieldCheck, RefreshCw, CalendarClock, X as XIcon, RotateCcw
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -54,6 +54,17 @@ const AdminDashboard = () => {
   const [docForm, setDocForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // Slot management modal
+  const [showSlotModal, setShowSlotModal] = useState(false);
+  const [slotDoctor, setSlotDoctor] = useState(null);
+  const [slotDate, setSlotDate] = useState('');
+  const [slotList, setSlotList] = useState([]);
+  const [isCustomSlots, setIsCustomSlots] = useState(false);
+  const [slotLoading, setSlotLoading] = useState(false);
+  const [slotSaving, setSlotSaving] = useState(false);
+  const [slotError, setSlotError] = useState('');
+  const [newSlotTime, setNewSlotTime] = useState('09:00');
 
   const fetchStats = useCallback(() => {
     api.get('/admin/stats').then(r => setStats(r.data)).catch(console.error);
@@ -168,6 +179,102 @@ const AdminDashboard = () => {
         ? prev.available_days.filter(d => d !== day)
         : [...prev.available_days, day]
     }));
+  };
+
+  // Slot management handlers
+  const openSlotModal = (doc) => {
+    setSlotDoctor(doc);
+    setSlotDate('');
+    setSlotList([]);
+    setIsCustomSlots(false);
+    setSlotError('');
+    setNewSlotTime('09:00');
+    setShowSlotModal(true);
+  };
+
+  const fetchSlotsForDate = async (doctorId, date) => {
+    if (!date) return;
+    setSlotLoading(true);
+    setSlotError('');
+    try {
+      const customRes = await api.get(`/doctors/${doctorId}/slots`, { params: { date } });
+      if (customRes.data.is_custom && customRes.data.custom_slots) {
+        setSlotList(customRes.data.custom_slots);
+        setIsCustomSlots(true);
+      } else {
+        const availRes = await api.get(`/doctors/${doctorId}/available-slots`, { params: { date } });
+        setSlotList(availRes.data.available_slots || []);
+        setIsCustomSlots(false);
+      }
+    } catch (err) {
+      setSlotError('Failed to fetch slots');
+      setSlotList([]);
+    } finally {
+      setSlotLoading(false);
+    }
+  };
+
+  const handleSlotDateChange = (e) => {
+    const date = e.target.value;
+    setSlotDate(date);
+    if (date && slotDoctor) {
+      fetchSlotsForDate(slotDoctor._id, date);
+    }
+  };
+
+  const addSlot = () => {
+    if (!newSlotTime) return;
+    const formatted = newSlotTime.slice(0, 5);
+    if (slotList.includes(formatted)) {
+      setSlotError('This time slot already exists');
+      return;
+    }
+    setSlotError('');
+    setSlotList(prev => [...prev, formatted].sort());
+  };
+
+  const removeSlot = (time) => {
+    setSlotList(prev => prev.filter(s => s !== time));
+  };
+
+  const saveCustomSlots = async () => {
+    if (!slotDoctor || !slotDate || slotList.length === 0) {
+      setSlotError('Please add at least one time slot');
+      return;
+    }
+    setSlotSaving(true);
+    setSlotError('');
+    try {
+      await api.post(`/doctors/${slotDoctor._id}/slots`, { date: slotDate, slots: slotList });
+      setIsCustomSlots(true);
+      setSlotError('');
+    } catch (err) {
+      setSlotError(err.response?.data?.detail || 'Failed to save slots');
+    } finally {
+      setSlotSaving(false);
+    }
+  };
+
+  const resetToDefault = async () => {
+    if (!slotDoctor || !slotDate) return;
+    if (!window.confirm('Reset to auto-generated slots for this date?')) return;
+    setSlotSaving(true);
+    setSlotError('');
+    try {
+      await api.delete(`/doctors/${slotDoctor._id}/slots`, { params: { date: slotDate } });
+      await fetchSlotsForDate(slotDoctor._id, slotDate);
+    } catch (err) {
+      setSlotError(err.response?.data?.detail || 'Failed to reset slots');
+    } finally {
+      setSlotSaving(false);
+    }
+  };
+
+  const formatSlotDisplay = (hm) => {
+    const [h, m] = hm.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
   };
 
   const pieData = stats ? [
@@ -353,7 +460,10 @@ const AdminDashboard = () => {
                           </span>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => openSlotModal(doc)} className="p-2 hover:bg-blue-50 rounded-lg text-mc-text-secondary hover:text-blue-600 transition-colors" title="Manage Slots" data-testid={`slots-doctor-${doc._id}`}>
+                              <CalendarClock size={15} />
+                            </button>
                             <button onClick={() => openEdit(doc)} className="p-2 hover:bg-mc-bg rounded-lg text-mc-text-secondary hover:text-mc-primary transition-colors" data-testid={`edit-doctor-${doc._id}`}>
                               <Edit size={15} />
                             </button>
@@ -540,6 +650,145 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Slot Management Modal */}
+      {showSlotModal && slotDoctor && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" data-testid="slot-modal">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-fade-in">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-mc-border">
+              <div>
+                <h2 className="font-heading text-lg text-mc-text font-700">Manage Time Slots</h2>
+                <p className="text-xs text-mc-text-secondary font-body mt-0.5">{slotDoctor.name}</p>
+              </div>
+              <button onClick={() => setShowSlotModal(false)} className="text-mc-text-secondary hover:text-mc-text transition-colors p-1" data-testid="close-slot-modal">
+                <XCircle size={22} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {slotError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 font-body">{slotError}</div>}
+
+              {/* Date Picker */}
+              <div>
+                <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Select Date</label>
+                <input
+                  type="date"
+                  value={slotDate}
+                  onChange={handleSlotDateChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                  data-testid="slot-date-picker"
+                />
+              </div>
+
+              {slotDate && (
+                <>
+                  {/* Status indicator */}
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-body ${isCustomSlots ? 'bg-blue-50 text-blue-700' : 'bg-mc-bg text-mc-text-secondary'}`}>
+                    {isCustomSlots ? <CalendarClock size={14} /> : <Clock size={14} />}
+                    {isCustomSlots ? 'Using custom slots for this date' : 'Using auto-generated default slots'}
+                  </div>
+
+                  {slotLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-8 h-8 border-4 border-mc-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <>
+                      {/* Add new slot */}
+                      <div>
+                        <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Add Time Slot</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="time"
+                            value={newSlotTime}
+                            onChange={e => setNewSlotTime(e.target.value)}
+                            className="flex-1 px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                            data-testid="new-slot-time"
+                          />
+                          <button
+                            type="button"
+                            onClick={addSlot}
+                            className="btn-primary text-sm px-4 py-2.5 flex items-center gap-1.5"
+                            data-testid="add-slot-btn"
+                          >
+                            <Plus size={14} /> Add
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Slot list */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-xs font-medium text-mc-text font-body">
+                            Time Slots ({slotList.length})
+                          </label>
+                          {slotList.length > 0 && (
+                            <span className="text-[11px] text-mc-text-secondary font-body">Click the X to remove a slot</span>
+                          )}
+                        </div>
+                        {slotList.length === 0 ? (
+                          <div className="py-6 text-center text-mc-text-secondary text-sm font-body border border-dashed border-mc-border rounded-lg">
+                            <Clock size={24} className="mx-auto text-mc-border mb-2" />
+                            <p>No slots defined. Add time slots above.</p>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                            {slotList.map(time => (
+                              <div
+                                key={time}
+                                className="group flex items-center gap-1.5 bg-mc-bg border border-mc-border rounded-lg px-3 py-2 text-sm font-body text-mc-text hover:border-red-300 transition-colors"
+                              >
+                                <Clock size={12} className="text-mc-text-secondary" />
+                                <span>{formatSlotDisplay(time)}</span>
+                                <button
+                                  onClick={() => removeSlot(time)}
+                                  className="ml-0.5 text-mc-text-secondary hover:text-red-600 transition-colors opacity-50 group-hover:opacity-100"
+                                  data-testid={`remove-slot-${time}`}
+                                >
+                                  <XIcon size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex gap-3 pt-2 border-t border-mc-border">
+                        {isCustomSlots && (
+                          <button
+                            type="button"
+                            onClick={resetToDefault}
+                            disabled={slotSaving}
+                            className="flex items-center gap-2 text-sm px-4 py-2.5 border border-mc-border rounded-lg text-mc-text-secondary hover:text-mc-text hover:bg-mc-bg transition-colors font-body"
+                            data-testid="reset-slots-btn"
+                          >
+                            <RotateCcw size={14} /> Reset to Default
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={saveCustomSlots}
+                          disabled={slotSaving || slotList.length === 0}
+                          className="flex-1 btn-primary text-sm py-2.5 flex items-center justify-center gap-2"
+                          data-testid="save-slots-btn"
+                        >
+                          {slotSaving ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <><CheckCircle size={14} /> Save Custom Slots</>
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Doctor Modal */}
       {showModal && (

@@ -89,6 +89,7 @@ export const ensureIndexes = async (): Promise<void> => {
   await db.transactions().createIndex({ user_id: 1 });
   await db.transactions().createIndex({ created_at: -1 });
   await db.activity_logs().createIndex({ timestamp: -1 });
+  await db.doctor_slots().createIndex({ doctor_id: 1, date: 1 }, { unique: true });
   console.info('[Seed] MongoDB indexes ensured');
 };
 

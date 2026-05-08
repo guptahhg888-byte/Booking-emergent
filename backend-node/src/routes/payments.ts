@@ -10,7 +10,7 @@ import { db } from '../core/database';
 import { requireAuth } from '../core/middleware';
 import { validate, PaymentInitiateSchema } from '../core/schemas';
 import { logActivity } from '../services/activity';
-import { handlePaymentSuccessNotification } from '../services/email';
+import { handlePaymentSuccessNotification, handlePaymentFailureNotification } from '../services/email';
 import { getPhonepeToken, verifyWebhookAuth, webhookAuthRequired } from '../services/phonepe';
 import { FRONTEND_URL, PHONEPE_ENV, PHONEPE_PAY_URL, PHONEPE_STATUS_BASE, PHONEPE_MERCHANT_ID } from '../core/config';
 
@@ -161,6 +161,20 @@ router.get('/status/:txnId', async (req: Request, res: Response) => {
                 { transaction_id: txnId },
                 { $set: { status: 'cancelled', payment_status: 'failed' } }
               );
+              const failAppt = await db.appointments().findOne({ transaction_id: txnId }) as Record<string, unknown> | null;
+              if (failAppt) {
+                handlePaymentFailureNotification({
+                  userEmail: (failAppt['patient_email'] as string) ?? '',
+                  userName: (failAppt['patient_name'] as string) ?? '',
+                  userPhone: (failAppt['patient_phone'] as string) ?? '',
+                  doctorName: (failAppt['doctor_name'] as string) ?? '',
+                  appointmentDate: (failAppt['appointment_date'] as string) ?? '',
+                  appointmentTime: (failAppt['appointment_time'] as string) ?? '',
+                  consultationFee: ((txn['amount'] as number) ?? 0) / 100,
+                  transactionId: txnId,
+                  paymentState: 'FAILED',
+                }).catch((err) => console.error('[Email] Failure notification failed:', err));
+              }
             }
           }
         }
@@ -233,6 +247,20 @@ router.post('/simulate/:txnId/failure', async (req: Request, res: Response) => {
     { transaction_id: txnId },
     { $set: { status: 'cancelled', payment_status: 'failed' } }
   );
+  const failAppt = await db.appointments().findOne({ transaction_id: txnId }) as Record<string, unknown> | null;
+  if (failAppt) {
+    handlePaymentFailureNotification({
+      userEmail: (failAppt['patient_email'] as string) ?? '',
+      userName: (failAppt['patient_name'] as string) ?? '',
+      userPhone: (failAppt['patient_phone'] as string) ?? '',
+      doctorName: (failAppt['doctor_name'] as string) ?? '',
+      appointmentDate: (failAppt['appointment_date'] as string) ?? '',
+      appointmentTime: (failAppt['appointment_time'] as string) ?? '',
+      consultationFee: ((txn['amount'] as number) ?? 0) / 100,
+      transactionId: txnId,
+      paymentState: 'FAILED',
+    }).catch((err) => console.error('[Email] Failure notification failed:', err));
+  }
   res.json({ message: 'Payment failed', transaction_id: txnId });
 });
 
@@ -311,6 +339,21 @@ router.post('/webhook', async (req: Request, res: Response) => {
         { transaction_id: merchantOrderId },
         { $set: { status: 'cancelled', payment_status: 'failed' } }
       );
+      const whFailAppt = await db.appointments().findOne({ transaction_id: merchantOrderId }) as Record<string, unknown> | null;
+      const whFailTxn = await db.transactions().findOne({ merchant_order_id: merchantOrderId }) as Record<string, unknown> | null;
+      if (whFailAppt) {
+        handlePaymentFailureNotification({
+          userEmail: (whFailAppt['patient_email'] as string) ?? '',
+          userName: (whFailAppt['patient_name'] as string) ?? '',
+          userPhone: (whFailAppt['patient_phone'] as string) ?? '',
+          doctorName: (whFailAppt['doctor_name'] as string) ?? '',
+          appointmentDate: (whFailAppt['appointment_date'] as string) ?? '',
+          appointmentTime: (whFailAppt['appointment_time'] as string) ?? '',
+          consultationFee: ((whFailTxn?.['amount'] as number) ?? 0) / 100,
+          transactionId: merchantOrderId,
+          paymentState: 'FAILED',
+        }).catch((err) => console.error('[Email] Webhook failure notification failed:', err));
+      }
     }
     res.json({ status: 'received' });
   } catch (e) {

@@ -64,6 +64,13 @@ export const PaymentInitiateSchema = z.object({
   appointment_id: z.string(),
 });
 
+export const DoctorSlotsSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  slots: z.array(
+    z.string().regex(/^\d{2}:\d{2}$/, 'Each slot must be in HH:MM format')
+  ).min(1, 'At least one slot is required'),
+});
+
 // Middleware factory: validates req.body against a Zod schema
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema } from 'zod';

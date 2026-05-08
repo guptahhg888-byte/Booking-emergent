@@ -258,6 +258,199 @@ export async function sendBookingConfirmationEmail(params: BookingEmailParams): 
   }
 }
 
+// ─── Send payment failed/pending email to user ──────────────────────────────
+
+export interface PaymentFailedEmailParams {
+  userEmail: string;
+  userName: string;
+  doctorName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  consultationFee: number;
+  transactionId: string;
+  paymentState: 'FAILED' | 'PENDING';
+}
+
+export async function sendPaymentFailedEmail(params: PaymentFailedEmailParams): Promise<boolean> {
+  const {
+    userEmail, userName, doctorName, appointmentDate, appointmentTime,
+    consultationFee, transactionId, paymentState,
+  } = params;
+
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.warn('[Email] Transporter not available, skipping payment-failed email');
+    return false;
+  }
+
+  const isFailed = paymentState === 'FAILED';
+  const statusLabel = isFailed ? 'Payment Failed' : 'Payment Pending';
+  const statusColor = isFailed ? '#d32f2f' : '#f57c00';
+  const statusIcon = isFailed ? '✗' : '⏳';
+  const userMessage = isFailed
+    ? 'Unfortunately, your payment could not be processed and the booking has been cancelled. Please try again or contact support if the amount was deducted.'
+    : 'Your payment is still pending. The session has not been confirmed yet. If you have already made the payment, please allow a few minutes for processing.';
+
+  const htmlContent = `
+  <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 24px; border-radius: 12px;">
+    <div style="background: ${statusColor}; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+      <h1 style="margin: 0; font-size: 22px;">${statusLabel} ${statusIcon}</h1>
+      <p style="margin: 8px 0 0; opacity: 0.9;">Your consultation booking could not be completed</p>
+    </div>
+    <div style="background: white; padding: 24px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+      <p style="color: #333; font-size: 16px;">Hi <strong>${userName}</strong>,</p>
+      <p style="color: #555; line-height: 1.6;">${userMessage}</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Consultant</td>
+          <td style="padding: 8px 16px; color: #555;">${doctorName}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Date</td>
+          <td style="padding: 8px 16px; color: #555;">${appointmentDate}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Time</td>
+          <td style="padding: 8px 16px; color: #555;">${appointmentTime}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Amount</td>
+          <td style="padding: 8px 16px; color: #555;">₹${consultationFee}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Transaction ID</td>
+          <td style="padding: 8px 16px; color: #555; font-family: monospace; font-size: 13px;">${transactionId}</td>
+        </tr>
+      </table>
+      <div style="background: ${isFailed ? '#ffebee' : '#fff3e0'}; border-left: 4px solid ${statusColor}; padding: 16px; border-radius: 4px; margin: 16px 0;">
+        <p style="margin: 0; color: ${isFailed ? '#c62828' : '#e65100'}; font-weight: bold;">
+          ${isFailed ? 'Your booking has been cancelled. You can rebook from the doctors page.' : 'If the payment does not complete within 30 minutes, the booking will be automatically cancelled.'}
+        </p>
+      </div>
+      <hr style="border: none; border-top: 1px solid #e9ecef; margin: 24px 0;" />
+      <p style="color: #999; font-size: 12px; text-align: center;">This is an automated email from MediConsult. Please do not reply directly.</p>
+    </div>
+  </div>`;
+
+  try {
+    await transporter.sendMail({
+      from: `"MediConsult Bookings" <${SMTP_EMAIL}>`,
+      to: userEmail,
+      subject: `${statusLabel} - Consultation with ${doctorName} | ${appointmentDate} at ${appointmentTime}`,
+      html: htmlContent,
+    });
+    console.info(`[Email] Payment-failed email sent to ${userEmail}`);
+    return true;
+  } catch (error: any) {
+    console.error('[Email] Failed to send payment-failed email:', error.message);
+    return false;
+  }
+}
+
+// ─── Send payment failed notification to admin/consultant ────────────────────
+
+export async function sendPaymentFailedAdminNotification(params: PaymentFailedEmailParams & { userPhone?: string }): Promise<boolean> {
+  const {
+    userEmail, userName, userPhone, doctorName, appointmentDate, appointmentTime,
+    consultationFee, transactionId, paymentState,
+  } = params;
+
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.warn('[Email] Transporter not available, skipping admin notification');
+    return false;
+  }
+
+  const statusLabel = paymentState === 'FAILED' ? 'FAILED' : 'PENDING';
+
+  const htmlContent = `
+  <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 24px; border-radius: 12px;">
+    <div style="background: #37474f; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+      <h1 style="margin: 0; font-size: 22px;">Booking Attempt - Payment ${statusLabel}</h1>
+      <p style="margin: 8px 0 0; opacity: 0.9;">A user tried to book a session but payment was not completed</p>
+    </div>
+    <div style="background: white; padding: 24px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+      <p style="color: #333; font-size: 16px;">The following user attempted to book a consultation but the payment <strong style="color: ${paymentState === 'FAILED' ? '#d32f2f' : '#f57c00'};">${statusLabel}</strong>:</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Patient Name</td>
+          <td style="padding: 8px 16px; color: #555;">${userName}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Patient Email</td>
+          <td style="padding: 8px 16px; color: #555;">${userEmail}</td>
+        </tr>
+        ${userPhone ? `<tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Patient Phone</td>
+          <td style="padding: 8px 16px; color: #555;">${userPhone}</td>
+        </tr>` : ''}
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Consultant</td>
+          <td style="padding: 8px 16px; color: #555;">${doctorName}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Date</td>
+          <td style="padding: 8px 16px; color: #555;">${appointmentDate}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Time</td>
+          <td style="padding: 8px 16px; color: #555;">${appointmentTime}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Amount</td>
+          <td style="padding: 8px 16px; color: #555;">₹${consultationFee}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Transaction ID</td>
+          <td style="padding: 8px 16px; color: #555; font-family: monospace; font-size: 13px;">${transactionId}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Payment Status</td>
+          <td style="padding: 8px 16px;"><span style="background: ${paymentState === 'FAILED' ? '#ffcdd2' : '#ffe0b2'}; color: ${paymentState === 'FAILED' ? '#c62828' : '#e65100'}; padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 13px;">${statusLabel}</span></td>
+        </tr>
+      </table>
+      <hr style="border: none; border-top: 1px solid #e9ecef; margin: 24px 0;" />
+      <p style="color: #999; font-size: 12px; text-align: center;">Automated notification from MediConsult CRM</p>
+    </div>
+  </div>`;
+
+  try {
+    await transporter.sendMail({
+      from: `"MediConsult CRM" <${SMTP_EMAIL}>`,
+      to: CONSULTANT_EMAIL,
+      cc: CC_EMAILS,
+      subject: `[Alert] Payment ${statusLabel} - ${userName} tried to book with ${doctorName} | ${appointmentDate}`,
+      html: htmlContent,
+    });
+    console.info(`[Email] Admin payment-failure notification sent to ${CONSULTANT_EMAIL}`);
+    return true;
+  } catch (error: any) {
+    console.error('[Email] Failed to send admin notification:', error.message);
+    return false;
+  }
+}
+
+// ─── Combined: handle payment failure notification ───────────────────────────
+
+export interface PaymentFailureNotificationParams {
+  userEmail: string;
+  userName: string;
+  userPhone?: string;
+  doctorName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  consultationFee: number;
+  transactionId: string;
+  paymentState: 'FAILED' | 'PENDING';
+}
+
+export async function handlePaymentFailureNotification(params: PaymentFailureNotificationParams): Promise<void> {
+  await Promise.allSettled([
+    sendPaymentFailedEmail(params),
+    sendPaymentFailedAdminNotification(params),
+  ]);
+}
+
 // ─── Combined: create meet + send email ──────────────────────────────────────
 
 export interface PaymentSuccessNotificationParams {

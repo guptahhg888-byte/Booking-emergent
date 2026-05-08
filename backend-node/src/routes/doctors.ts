@@ -6,7 +6,7 @@ import { Router, Request, Response } from 'express';
 import { ObjectId } from 'mongodb';
 import { db } from '../core/database';
 import { requireAdmin } from '../core/middleware';
-import { validate, DoctorCreateSchema } from '../core/schemas';
+import { validate, DoctorCreateSchema, DoctorSlotsSchema } from '../core/schemas';
 import { logActivity } from '../services/activity';
 
 const router = Router();
@@ -81,7 +81,12 @@ router.get('/:doctorId/available-slots', async (req: Request, res: Response) => 
   }
   if (!doc) { res.status(404).json({ detail: 'Doctor not found' }); return; }
 
-  const allSlots = generateSlots(doc);
+  // Check for admin-defined custom slots first; fall back to auto-generation
+  const customSlotDoc = await db.doctor_slots().findOne({ doctor_id: doctorId, date }) as Record<string, unknown> | null;
+  const allSlots = customSlotDoc
+    ? (customSlotDoc['slots'] as string[]).slice().sort()
+    : generateSlots(doc);
+
   const booked = await db
     .appointments()
     .find(
@@ -90,7 +95,10 @@ router.get('/:doctorId/available-slots', async (req: Request, res: Response) => 
     )
     .toArray();
   const bookedTimes = new Set(booked.map((a) => a.appointment_time as string));
-  res.json({ available_slots: allSlots.filter((s) => !bookedTimes.has(s)) });
+  res.json({
+    available_slots: allSlots.filter((s) => !bookedTimes.has(s)),
+    is_custom: !!customSlotDoc,
+  });
 });
 
 // ─── GET /doctors/:id ─────────────────────────────────────────────────────────
@@ -140,6 +148,71 @@ router.put('/:doctorId', requireAdmin, async (req: Request, res: Response) => {
   } catch {
     res.status(404).json({ detail: 'Doctor not found' });
   }
+});
+
+// ─── POST /doctors/:id/slots — set custom slots for a date ────────────────
+
+router.post('/:doctorId/slots', requireAdmin, validate(DoctorSlotsSchema), async (req: Request, res: Response) => {
+  const { doctorId } = req.params;
+  const admin = req.user!;
+  const { date, slots } = req.body as { date: string; slots: string[] };
+
+  let doc: Record<string, unknown> | null = null;
+  try {
+    doc = await db.doctors().findOne({ _id: new ObjectId(doctorId) }) as Record<string, unknown> | null;
+  } catch {
+    res.status(404).json({ detail: 'Doctor not found' }); return;
+  }
+  if (!doc) { res.status(404).json({ detail: 'Doctor not found' }); return; }
+
+  const sortedSlots = [...new Set(slots)].sort();
+
+  await db.doctor_slots().updateOne(
+    { doctor_id: doctorId, date },
+    {
+      $set: { slots: sortedSlots, updated_at: new Date() },
+      $setOnInsert: { doctor_id: doctorId, date, created_by: admin['_id'] as string, created_at: new Date() },
+    },
+    { upsert: true }
+  );
+
+  await logActivity(admin['_id'] as string, admin['name'] as string, 'SLOTS_UPDATED', `Custom slots set for ${doc['name']} on ${date} (${sortedSlots.length} slots)`);
+  res.json({ message: 'Custom slots saved', doctor_id: doctorId, date, slots: sortedSlots });
+});
+
+// ─── GET /doctors/:id/slots — get custom slots for a date ─────────────────
+
+router.get('/:doctorId/slots', requireAdmin, async (req: Request, res: Response) => {
+  const { doctorId } = req.params;
+  const { date } = req.query as { date: string };
+
+  if (!date) { res.status(400).json({ detail: 'date query parameter is required' }); return; }
+
+  const slotDoc = await db.doctor_slots().findOne({ doctor_id: doctorId, date }) as Record<string, unknown> | null;
+  if (!slotDoc) {
+    res.json({ custom_slots: null, is_custom: false });
+    return;
+  }
+  res.json({ custom_slots: slotDoc['slots'], is_custom: true, created_at: slotDoc['created_at'], updated_at: slotDoc['updated_at'] });
+});
+
+// ─── DELETE /doctors/:id/slots — remove custom slots (revert to auto) ─────
+
+router.delete('/:doctorId/slots', requireAdmin, async (req: Request, res: Response) => {
+  const { doctorId } = req.params;
+  const { date } = req.query as { date: string };
+  const admin = req.user!;
+
+  if (!date) { res.status(400).json({ detail: 'date query parameter is required' }); return; }
+
+  const result = await db.doctor_slots().deleteOne({ doctor_id: doctorId, date });
+  if (result.deletedCount === 0) {
+    res.json({ message: 'No custom slots found for this date' });
+    return;
+  }
+
+  await logActivity(admin['_id'] as string, admin['name'] as string, 'SLOTS_RESET', `Custom slots removed for doctor ${doctorId} on ${date}`);
+  res.json({ message: 'Custom slots removed, reverted to auto-generated schedule' });
 });
 
 // ─── DELETE /doctors/:id ──────────────────────────────────────────────────────

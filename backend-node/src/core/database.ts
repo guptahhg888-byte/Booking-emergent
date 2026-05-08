@@ -17,4 +17,5 @@ export const db = {
   appointments: () => mongoose.connection.collection('appointments'),
   transactions: () => mongoose.connection.collection('transactions'),
   activity_logs: () => mongoose.connection.collection('activity_logs'),
+  doctor_slots: () => mongoose.connection.collection('doctor_slots'),
 };
