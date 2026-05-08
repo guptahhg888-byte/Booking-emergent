@@ -70,8 +70,8 @@ ADMIN_PASSWORD="Admin@123"
 
 # PhonePe v2 (OAuth)
 PHONEPE_ENV="SANDBOX"              # or "PRODUCTION"
-PHONEPE_MERCHANT_ID="M23360Z1R0F5T"
-PHONEPE_CLIENT_ID="M23360Z1R0F5T_2512211806"
+PHONEPE_MERCHANT_ID="<your-phone-pe-merchant-id"
+PHONEPE_CLIENT_ID="<Your-phone-pe-client-id>"
 PHONEPE_CLIENT_VERSION="1"
 PHONEPE_CLIENT_SECRET="<from-phonepe-dashboard>"
 PHONEPE_WEBHOOK_USERNAME=""        # set to enable webhook signature validation
