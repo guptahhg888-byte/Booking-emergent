@@ -9,6 +9,29 @@ import { requireAuth, requireAdmin } from '../core/middleware';
 import { validate, AppointmentCreateSchema, RescheduleSchema } from '../core/schemas';
 import { logActivity } from '../services/activity';
 
+// Country-based fee multipliers (must stay in sync with frontend COUNTRY_CONFIG)
+const COUNTRY_FEE_MULTIPLIER: Record<string, number> = {
+  IN: 1.0,
+  US: 2.5,
+  GB: 2.5,
+  DE: 2.25,
+  FR: 2.25,
+  AE: 2.0,
+  AU: 2.25,
+  CA: 2.25,
+  SG: 2.25,
+  NZ: 2.0,
+  JP: 2.0,
+  KR: 1.75,
+  MY: 1.25,
+  PK: 1.25,
+  BD: 1.25,
+  LK: 1.25,
+  SA: 2.0,
+  QA: 2.0,
+};
+const DEFAULT_INTL_MULTIPLIER = 2.5;
+
 const router = Router();
 
 // ─── POST /appointments ───────────────────────────────────────────────────────
@@ -42,6 +65,11 @@ router.post('/', requireAuth, validate(AppointmentCreateSchema), async (req: Req
     resolvedFee = doctor.fee_60min as number;
   }
 
+  // Apply country-based fee multiplier
+  const countryCode: string = body.country_code || 'IN';
+  const multiplier = COUNTRY_FEE_MULTIPLIER[countryCode] ?? DEFAULT_INTL_MULTIPLIER;
+  const countryAdjustedFee = Math.round(resolvedFee * multiplier);
+
   const userId = user['_id'] as string;
   const appt = {
     user_id: userId,
@@ -53,10 +81,13 @@ router.post('/', requireAuth, validate(AppointmentCreateSchema), async (req: Req
     appointment_date: body.appointment_date,
     appointment_time: body.appointment_time,
     duration_minutes: body.duration_minutes ?? null,
+    country_code: countryCode,
     status: 'pending_payment',
     payment_status: 'pending',
     transaction_id: null,
-    consultation_fee: resolvedFee,
+    consultation_fee: countryAdjustedFee,
+    base_fee_inr: resolvedFee,
+    fee_multiplier: multiplier,
     notes: body.notes ?? null,
     created_at: new Date(),
   };

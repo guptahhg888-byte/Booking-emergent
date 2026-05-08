@@ -12,7 +12,7 @@ function getEnv(key: string, defaultValue = ''): string {
 }
 
 // --- App Settings ---
-export const PROJECT_NAME = getEnv('PROJECT_NAME', 'MediConsult API');
+export const PROJECT_NAME = getEnv('PROJECT_NAME', 'Dr. MadhumatiSingh API');
 export const DEBUG = getEnv('DEBUG', 'False').toLowerCase() === 'true';
 
 // --- Database ---

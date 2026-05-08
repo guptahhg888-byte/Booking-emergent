@@ -3,6 +3,7 @@
  * Equivalent of Python's routes/admin.py
  */
 import { Router, Request, Response } from 'express';
+import { ObjectId } from 'mongodb';
 import { requireAdmin } from '../core/middleware';
 import { db } from '../core/database';
 
@@ -118,6 +119,28 @@ router.get('/transactions', requireAdmin, async (_req: Request, res: Response) =
     updated_at: t['updated_at'] instanceof Date ? t['updated_at'].toISOString() : t['updated_at'],
   }));
   res.json(result);
+});
+
+// ─── PUT /admin/users/:id/country ────────────────────────────────────────────
+
+router.put('/users/:userId/country', requireAdmin, async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const { country_code } = req.body;
+
+  if (!country_code || typeof country_code !== 'string' || country_code.length > 3) {
+    res.status(400).json({ detail: 'Invalid country_code' });
+    return;
+  }
+
+  try {
+    await db.users().updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: { country_code, updated_at: new Date() } }
+    );
+    res.json({ message: 'Country updated', country_code });
+  } catch {
+    res.status(404).json({ detail: 'User not found' });
+  }
 });
 
 export default router;

@@ -143,7 +143,7 @@ const LandingPage = () => {
                           <div>
                             <span className="font-heading text-mc-primary font-600">{fee.display}</span>
                             {fee.isInternational && (
-                              <p className="text-[10px] text-mc-text-secondary mt-0.5">₹{doc.consultation_fee?.toLocaleString()} + {fee.markupPct}% intl.</p>
+                              <p className="text-[10px] text-mc-text-secondary mt-0.5">{fee.displayINR} INR</p>
                             )}
                           </div>
                         );
@@ -206,7 +206,7 @@ const LandingPage = () => {
       <section className="py-20 bg-mc-primary" data-testid="cta-section">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="font-heading text-4xl lg:text-5xl text-white font-700 mb-4">Ready to Consult a Specialist?</h2>
-          <p className="text-white/80 text-lg mb-10">Join thousands of patients who trust MediConsult for their healthcare needs.</p>
+          <p className="text-white/80 text-lg mb-10">Join thousands of patients who trust Dr. MadhumatiSingh for their healthcare needs.</p>
           <div className="flex flex-wrap justify-center gap-4">
             {!user && (
               <Link to="/register" className="bg-white text-mc-primary font-medium rounded-full px-8 py-4 hover:bg-mc-bg transition-all hover:-translate-y-0.5 shadow-lg" data-testid="cta-register-btn">
@@ -223,18 +223,22 @@ const LandingPage = () => {
       {/* Footer */}
       <footer className="bg-mc-text py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-mc-primary rounded-lg flex items-center justify-center">
                 <Stethoscope size={16} className="text-white" />
               </div>
-              <span className="font-heading text-lg text-white">MediConsult</span>
+              <span className="font-heading text-lg text-white">Dr. MadhumatiSingh</span>
             </div>
-            <p className="text-white/50 text-sm font-body">© 2025 MediConsult. All rights reserved.</p>
-            <div className="flex gap-6 text-sm text-white/50 font-body">
-              <span>Privacy Policy</span>
-              <span>Terms of Service</span>
+            <div className="text-center md:text-left">
+              <p className="text-white/70 text-sm font-body mb-1">Contact Us</p>
+              <p className="text-white/50 text-sm font-body">
+                <a href="tel:8077441534" className="hover:text-white transition-colors">8077441534</a>
+                {' · '}
+                <a href="mailto:guptah.hg888@gmail.com" className="hover:text-white transition-colors">guptah.hg888@gmail.com</a>
+              </p>
             </div>
+            <p className="text-white/50 text-sm font-body">© 2025 Dr. MadhumatiSingh. All rights reserved.</p>
           </div>
         </div>
       </footer>

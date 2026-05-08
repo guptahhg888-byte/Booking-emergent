@@ -90,38 +90,51 @@ const Navbar = () => {
 
           {/* Auth / User */}
           <div className="hidden md:flex items-center gap-3">
-            {/* Currency Switcher */}
+            {/* Country/Currency Indicator — read-only for regular users, dropdown only for admin */}
             <div className="relative" ref={currencyRef}>
-              <button
-                onClick={() => setCurrencyOpen(o => !o)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-mc-border bg-mc-surface hover:border-mc-secondary transition-all text-sm font-body text-mc-text"
-                data-testid="currency-switcher-btn"
-              >
-                <span className="text-base leading-none">{config.flag}</span>
-                <span className="font-medium text-xs">{config.currency}</span>
-                <ChevronDown size={12} className={`text-mc-text-secondary transition-transform ${currencyOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {currencyOpen && (
-                <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-mc-border overflow-hidden animate-fade-in z-50">
-                  <div className="px-3 py-2 border-b border-mc-border">
-                    <p className="text-[11px] text-mc-text-secondary font-body">Display currency</p>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {Object.entries(COUNTRY_CONFIG).map(([code, cfg]) => (
-                      <button
-                        key={code}
-                        onClick={() => { switchCountry(code); setCurrencyOpen(false); }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-body hover:bg-mc-bg transition-colors text-left ${
-                          countryCode === code ? 'bg-mc-primary/10 text-mc-primary font-semibold' : 'text-mc-text'
-                        }`}
-                        data-testid={`currency-option-${code}`}
-                      >
-                        <span className="text-base">{cfg.flag}</span>
-                        <span className="flex-1">{cfg.name}</span>
-                        <span className="text-xs text-mc-text-secondary font-mono">{cfg.currency}</span>
-                      </button>
-                    ))}
-                  </div>
+              {user?.role === 'admin' ? (
+                <>
+                  <button
+                    onClick={() => setCurrencyOpen(o => !o)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-mc-border bg-mc-surface hover:border-mc-secondary transition-all text-sm font-body text-mc-text"
+                    data-testid="currency-switcher-btn"
+                  >
+                    <span className="text-base leading-none">{config.flag}</span>
+                    <span className="font-medium text-xs">{config.currency}</span>
+                    <ChevronDown size={12} className={`text-mc-text-secondary transition-transform ${currencyOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {currencyOpen && (
+                    <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-mc-border overflow-hidden animate-fade-in z-50">
+                      <div className="px-3 py-2 border-b border-mc-border">
+                        <p className="text-[11px] text-mc-text-secondary font-body">Switch country (Admin)</p>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto">
+                        {Object.entries(COUNTRY_CONFIG).map(([code, cfg]) => (
+                          <button
+                            key={code}
+                            onClick={() => { switchCountry(code); setCurrencyOpen(false); }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-body hover:bg-mc-bg transition-colors text-left ${
+                              countryCode === code ? 'bg-mc-primary/10 text-mc-primary font-semibold' : 'text-mc-text'
+                            }`}
+                            data-testid={`currency-option-${code}`}
+                          >
+                            <span className="text-base">{cfg.flag}</span>
+                            <span className="flex-1">{cfg.name}</span>
+                            <span className="text-xs text-mc-text-secondary font-mono">{cfg.currency}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-mc-border bg-mc-surface text-sm font-body text-mc-text cursor-default opacity-80"
+                  title="Country auto-detected"
+                  data-testid="currency-indicator"
+                >
+                  <span className="text-base leading-none">{config.flag}</span>
+                  <span className="font-medium text-xs">{config.currency}</span>
                 </div>
               )}
             </div>

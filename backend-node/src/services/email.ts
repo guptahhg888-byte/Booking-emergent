@@ -37,7 +37,6 @@ interface MeetEventParams {
 }
 
 function parseTimeToISO(date: string, time: string): Date {
-  // Handle "HH:MM AM/PM" format
   let hours: number;
   let minutes: number;
 
@@ -49,7 +48,6 @@ function parseTimeToISO(date: string, time: string): Date {
     if (period === 'PM' && hours !== 12) hours += 12;
     if (period === 'AM' && hours === 12) hours = 0;
   } else {
-    // HH:MM 24-hour format
     const parts = time.split(':');
     hours = parseInt(parts[0], 10);
     minutes = parseInt(parts[1], 10);
@@ -60,11 +58,44 @@ function parseTimeToISO(date: string, time: string): Date {
   return dt;
 }
 
+/**
+ * Force-refresh the OAuth access token before making Calendar API calls.
+ * This prevents silent failures when the cached access token has expired.
+ */
+async function ensureFreshAccessToken(): Promise<boolean> {
+  try {
+    const { token } = await oauth2Client.getAccessToken();
+    if (!token) {
+      console.error('[Meet] Failed to obtain access token — refresh token may be expired or revoked.');
+      console.error('[Meet] FIX: Regenerate GOOGLE_REFRESH_TOKEN via OAuth Playground (https://developers.google.com/oauthplayground)');
+      console.error('[Meet] Also ensure OAuth consent screen is published to "Production" (not "Testing") in Google Cloud Console to prevent 7-day token expiry.');
+      return false;
+    }
+    return true;
+  } catch (error: any) {
+    console.error('[Meet] Token refresh failed:', error.message);
+    if (error.message?.includes('invalid_grant')) {
+      console.error('[Meet] CAUSE: Refresh token has expired or been revoked.');
+      console.error('[Meet] FIX: 1) Go to Google Cloud Console → OAuth consent screen → publish to Production');
+      console.error('[Meet] FIX: 2) Regenerate refresh token at https://developers.google.com/oauthplayground');
+      console.error('[Meet] FIX: 3) Update GOOGLE_REFRESH_TOKEN in .env and restart');
+    }
+    return false;
+  }
+}
+
 export async function createGoogleMeetEvent(params: MeetEventParams): Promise<string | null> {
   const { userEmail, appointmentDate, appointmentTime, durationMinutes = 30 } = params;
 
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REFRESH_TOKEN) {
     console.warn('[Meet] Google OAuth credentials not configured, skipping Meet link generation');
+    return null;
+  }
+
+  // Explicitly refresh the access token before making the API call
+  const tokenValid = await ensureFreshAccessToken();
+  if (!tokenValid) {
+    console.error('[Meet] Skipping event creation — unable to authenticate with Google.');
     return null;
   }
 
@@ -80,7 +111,7 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
       sendUpdates: 'all',
       requestBody: {
         summary: '1v1 with madhumati ma\'am',
-        description: `Consultation session booked via MediConsult platform.\n\nAttendee: ${userEmail}\nDate: ${appointmentDate}\nTime: ${appointmentTime}\nDuration: ${durationMinutes} minutes`,
+        description: `Consultation session booked via Dr. MadhumatiSingh platform.\n\nAttendee: ${userEmail}\nDate: ${appointmentDate}\nTime: ${appointmentTime}\nDuration: ${durationMinutes} minutes`,
         start: {
           dateTime: startTime.toISOString(),
           timeZone: 'Asia/Kolkata',
@@ -110,12 +141,27 @@ export async function createGoogleMeetEvent(params: MeetEventParams): Promise<st
       (ep) => ep.entryPointType === 'video'
     )?.uri;
 
-    console.info(`[Meet] Created event: ${event.data.htmlLink}, Meet: ${meetLink}, Status: ${event.status}`);
+    if (!meetLink) {
+      console.warn('[Meet] Event created but NO Meet link returned. Event HTML link:', event.data.htmlLink);
+      console.warn('[Meet] conferenceData:', JSON.stringify(event.data.conferenceData));
+      console.warn('[Meet] This can happen if Google Workspace does not have Meet enabled or the calendar does not support conference creation.');
+    } else {
+      console.info(`[Meet] Success! Event: ${event.data.htmlLink}, Meet: ${meetLink}`);
+    }
+
     return meetLink ?? null;
   } catch (error: any) {
     console.error('[Meet] Failed to create Google Meet event:', error.message);
+    if (error.response?.data) {
+      console.error('[Meet] Response data:', JSON.stringify(error.response.data));
+    }
     if (error.errors) {
       console.error('[Meet] API errors:', JSON.stringify(error.errors));
+    }
+    if (error.code === 401 || error.code === 403) {
+      console.error('[Meet] AUTH ERROR — Token invalid or insufficient permissions.');
+      console.error('[Meet] Ensure the refresh token has scope: https://www.googleapis.com/auth/calendar');
+      console.error('[Meet] Regenerate at https://developers.google.com/oauthplayground with Calendar API scope selected.');
     }
     if (error.code) {
       console.error('[Meet] Error code:', error.code, 'Status:', error.status);
@@ -238,13 +284,16 @@ export async function sendBookingConfirmationEmail(params: BookingEmailParams): 
       <p style="color: #555; line-height: 1.6; margin-top: 20px;">Please join the meeting at the scheduled time. A calendar invite has also been sent to your email.</p>
       
       <hr style="border: none; border-top: 1px solid #e9ecef; margin: 24px 0;" />
-      <p style="color: #999; font-size: 12px; text-align: center;">This is an automated email from MediConsult. Please do not reply directly.</p>
+      <p style="color: #555; font-size: 12px; text-align: center; margin-top: 16px;">
+        For any queries, contact us at <a href="tel:8077441534" style="color: #1a73e8;">8077441534</a> or <a href="mailto:guptah.hg888@gmail.com" style="color: #1a73e8;">guptah.hg888@gmail.com</a>
+      </p>
+      <p style="color: #999; font-size: 12px; text-align: center;">This is an automated email from Dr. MadhumatiSingh. Please do not reply directly.</p>
     </div>
   </div>`;
 
   try {
     await transporter.sendMail({
-      from: `"MediConsult Bookings" <${SMTP_EMAIL}>`,
+      from: `"Dr. MadhumatiSingh Bookings" <${SMTP_EMAIL}>`,
       to: [userEmail, CONSULTANT_EMAIL],
       cc: CC_EMAILS,
       subject: `Booking Confirmed - 1v1 with madhumati ma'am | ${appointmentDate} at ${appointmentTime}`,
@@ -328,13 +377,16 @@ export async function sendPaymentFailedEmail(params: PaymentFailedEmailParams): 
         </p>
       </div>
       <hr style="border: none; border-top: 1px solid #e9ecef; margin: 24px 0;" />
-      <p style="color: #999; font-size: 12px; text-align: center;">This is an automated email from MediConsult. Please do not reply directly.</p>
+      <p style="color: #555; font-size: 12px; text-align: center; margin-bottom: 8px;">
+        For any queries, contact us at <a href="tel:8077441534" style="color: #1a73e8;">8077441534</a> or <a href="mailto:guptah.hg888@gmail.com" style="color: #1a73e8;">guptah.hg888@gmail.com</a>
+      </p>
+      <p style="color: #999; font-size: 12px; text-align: center;">This is an automated email from Dr. MadhumatiSingh. Please do not reply directly.</p>
     </div>
   </div>`;
 
   try {
     await transporter.sendMail({
-      from: `"MediConsult Bookings" <${SMTP_EMAIL}>`,
+      from: `"Dr. MadhumatiSingh Bookings" <${SMTP_EMAIL}>`,
       to: userEmail,
       subject: `${statusLabel} - Consultation with ${doctorName} | ${appointmentDate} at ${appointmentTime}`,
       html: htmlContent,
@@ -410,13 +462,13 @@ export async function sendPaymentFailedAdminNotification(params: PaymentFailedEm
         </tr>
       </table>
       <hr style="border: none; border-top: 1px solid #e9ecef; margin: 24px 0;" />
-      <p style="color: #999; font-size: 12px; text-align: center;">Automated notification from MediConsult CRM</p>
+      <p style="color: #999; font-size: 12px; text-align: center;">Automated notification from Dr. MadhumatiSingh CRM</p>
     </div>
   </div>`;
 
   try {
     await transporter.sendMail({
-      from: `"MediConsult CRM" <${SMTP_EMAIL}>`,
+      from: `"Dr. MadhumatiSingh CRM" <${SMTP_EMAIL}>`,
       to: CONSULTANT_EMAIL,
       cc: CC_EMAILS,
       subject: `[Alert] Payment ${statusLabel} - ${userName} tried to book with ${doctorName} | ${appointmentDate}`,

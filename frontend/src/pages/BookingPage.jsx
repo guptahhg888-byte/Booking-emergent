@@ -40,7 +40,7 @@ const BookingPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { convertFee, countryCode, config, detecting } = useCurrency();
+  const { convertFee, getCountryFee, countryCode, config, detecting } = useCurrency();
 
   const [doctor, setDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +97,7 @@ const BookingPage = () => {
         appointment_date: formatDate(selectedDate),
         appointment_time: selectedTime,
         duration_minutes: selectedDuration?.minutes ?? null,
+        country_code: countryCode,
         notes: notes || null
       });
       const payRes = await api.post('/payments/initiate', { appointment_id: apptRes.data._id });
@@ -195,7 +196,7 @@ const BookingPage = () => {
                           <div className="text-right">
                             <span className="font-heading font-700">{fee.display}</span>
                             {fee.isInternational && (
-                              <p className="text-[10px] opacity-70">₹{opt.fee?.toLocaleString()}</p>
+                              <p className="text-[10px] opacity-70">{fee.displayINR}</p>
                             )}
                           </div>
                         </button>
@@ -214,7 +215,7 @@ const BookingPage = () => {
                           <>
                             <p className="font-heading text-3xl text-white font-700">{fee.display}</p>
                             {fee.isInternational && (
-                              <p className="text-white/60 text-xs mt-0.5">₹{selectedDuration?.fee?.toLocaleString()} INR base</p>
+                              <p className="text-white/60 text-xs mt-0.5">{fee.displayINR} INR</p>
                             )}
                           </>
                         );
@@ -227,7 +228,7 @@ const BookingPage = () => {
               {!detecting && countryCode !== 'IN' && (
                 <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-white/20 text-white/70 text-[11px]">
                   <Globe size={11} />
-                  Shown in {config.currency} · {config.flag} Incl. {Math.round(config.markup * 100)}% intl. fee · Payment in ₹INR
+                  {config.flag} {config.name} pricing · Payment charged in ₹INR
                 </div>
               )}
             </div>
@@ -361,7 +362,7 @@ const BookingPage = () => {
                             <>
                               <span className="font-heading text-mc-primary font-700">{fee.display}</span>
                               {fee.isInternational && (
-                                <p className="text-[10px] text-mc-text-secondary mt-0.5">Charged in ₹{selectedDuration?.fee?.toLocaleString()} INR</p>
+                                <p className="text-[10px] text-mc-text-secondary mt-0.5">Charged: {fee.displayINR} INR</p>
                               )}
                             </>
                           );

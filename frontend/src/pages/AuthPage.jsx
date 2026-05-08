@@ -116,7 +116,7 @@ const AuthPage = () => {
               {mode === 'login' ? 'Welcome Back' : 'Create Account'}
             </h1>
             <p className="text-white/70 text-sm mt-1 font-body">
-              {mode === 'login' ? 'Sign in to your MediConsult account' : 'Join MediConsult today'}
+              {mode === 'login' ? 'Sign in to your account' : 'Join Dr. MadhumatiSingh today'}
             </p>
           </div>
 

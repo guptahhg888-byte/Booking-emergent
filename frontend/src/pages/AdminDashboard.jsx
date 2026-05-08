@@ -5,9 +5,10 @@ import {
 } from 'recharts';
 import {
   Users, Stethoscope, Calendar, CreditCard, Activity, Plus, Edit, Trash2,
-  TrendingUp, CheckCircle, XCircle, Clock, AlertCircle, ShieldCheck, RefreshCw, CalendarClock, X as XIcon, RotateCcw
+  TrendingUp, CheckCircle, XCircle, Clock, AlertCircle, ShieldCheck, RefreshCw, CalendarClock, X as XIcon, RotateCcw, Globe
 } from 'lucide-react';
 import api from '../utils/api';
+import { COUNTRY_CONFIG } from '../contexts/CurrencyContext';
 
 const TABS = ['Overview', 'Doctors', 'Appointments', 'Users', 'Payments'];
 const PIE_COLORS = ['#2C5545', '#8A9A86', '#D9734E', '#5C6B64'];
@@ -301,7 +302,7 @@ const AdminDashboard = () => {
             </div>
             <div>
               <h1 className="font-heading text-xl text-white font-700">CRM Dashboard</h1>
-              <p className="text-white/60 text-xs font-body">MediConsult Admin Panel</p>
+              <p className="text-white/60 text-xs font-body">Dr. MadhumatiSingh CRM</p>
             </div>
           </div>
           <button onClick={() => { fetchStats(); fetchDoctors(); }} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-sm font-body" data-testid="refresh-dashboard">
@@ -566,7 +567,7 @@ const AdminDashboard = () => {
                 <table className="w-full font-body text-sm">
                   <thead className="bg-mc-bg border-b border-mc-border">
                     <tr>
-                      {['Name', 'Email', 'Phone', 'Role', 'Joined'].map(h => (
+                      {['Name', 'Email', 'Phone', 'Country', 'Role', 'Joined'].map(h => (
                         <th key={h} className="px-4 py-3.5 text-left text-xs font-medium text-mc-text-secondary uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -584,6 +585,24 @@ const AdminDashboard = () => {
                         </td>
                         <td className="px-4 py-4 text-mc-text-secondary">{u.email}</td>
                         <td className="px-4 py-4 text-mc-text-secondary">{u.phone || '—'}</td>
+                        <td className="px-4 py-4">
+                          <select
+                            value={u.country_code || 'IN'}
+                            onChange={async (e) => {
+                              const newCode = e.target.value;
+                              try {
+                                await api.put(`/admin/users/${u._id}/country`, { country_code: newCode });
+                                setUsers(prev => prev.map(usr => usr._id === u._id ? { ...usr, country_code: newCode } : usr));
+                              } catch (err) { console.error('Failed to update country:', err); }
+                            }}
+                            className="px-2 py-1.5 border border-mc-border rounded-lg text-xs font-body bg-mc-bg text-mc-text focus:outline-none focus:border-mc-secondary"
+                            data-testid={`user-country-${u._id}`}
+                          >
+                            {Object.entries(COUNTRY_CONFIG).map(([code, cfg]) => (
+                              <option key={code} value={code}>{cfg.flag} {cfg.name}</option>
+                            ))}
+                          </select>
+                        </td>
                         <td className="px-4 py-4">
                           <span className={`text-xs px-2 py-1 rounded-full font-medium ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-mc-bg text-mc-text-secondary'}`}>
                             {u.role}

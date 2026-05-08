@@ -50,8 +50,8 @@ export const AppointmentCreateSchema = z.object({
   doctor_id: z.string(),
   appointment_date: z.string(),
   appointment_time: z.string(),
-  // .nullish() = accepts undefined OR null (frontend may send null for unset fields)
   duration_minutes: z.number().int().nullish(),
+  country_code: z.string().max(3).default('IN'),
   notes: z.string().nullish(),
 });
 

@@ -54,7 +54,7 @@ const PaymentSimulation = () => {
               <Shield size={20} className="text-white" />
             </div>
             <div>
-              <p className="text-white font-heading font-600 text-sm">MediConsult Pay</p>
+              <p className="text-white font-heading font-600 text-sm">Dr. MadhumatiSingh Pay</p>
               <p className="text-white/60 text-xs">Secure Payment Gateway</p>
             </div>
           </div>

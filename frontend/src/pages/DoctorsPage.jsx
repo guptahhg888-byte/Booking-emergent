@@ -117,7 +117,7 @@ const DoctorsPage = () => {
                             <>
                               <p className="font-heading text-mc-primary font-600">{fee.display}</p>
                               {fee.isInternational && (
-                                <p className="text-[10px] text-mc-text-secondary mt-0.5">₹{doc.consultation_fee?.toLocaleString()} + {fee.markupPct}% intl.</p>
+                                <p className="text-[10px] text-mc-text-secondary mt-0.5">{fee.displayINR} INR</p>
                               )}
                             </>
                           );
