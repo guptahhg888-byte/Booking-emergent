@@ -1,8 +1,9 @@
 {
   "name": "mediconsult-backend",
   "version": "2.0.0",
-  "description": "MediConsult API - Node.js/Express backend",
+  "description": "Dr. MadhumatiSingh API - Node.js/Express backend",
   "main": "dist/index.js",
+  "type": "commonjs",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
