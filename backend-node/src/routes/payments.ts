@@ -16,22 +16,88 @@ import { FRONTEND_URL, PHONEPE_ENV, PHONEPE_PAY_URL, PHONEPE_STATUS_BASE, PHONEP
 
 const router = Router();
 
+const completeAppointmentPayment = async (txnId: string, amountPaise: number): Promise<void> => {
+  await db.appointments().updateOne(
+    { transaction_id: txnId },
+    { $set: { status: 'confirmed', payment_status: 'paid' } }
+  );
+  const apptForEmail = await db.appointments().findOne({ transaction_id: txnId }) as Record<string, unknown> | null;
+  if (apptForEmail) {
+    handlePaymentSuccessNotification({
+      userEmail: (apptForEmail['patient_email'] as string) ?? '',
+      userName: (apptForEmail['patient_name'] as string) ?? '',
+      userPhone: (apptForEmail['patient_phone'] as string) ?? '',
+      doctorName: (apptForEmail['doctor_name'] as string) ?? '',
+      serviceName: (apptForEmail['service_name'] as string) ?? null,
+      appointmentDate: (apptForEmail['appointment_date'] as string) ?? '',
+      appointmentTime: (apptForEmail['appointment_time'] as string) ?? '',
+      durationMinutes: (apptForEmail['duration_minutes'] as number) ?? 30,
+      consultationFee: amountPaise / 100,
+      transactionId: txnId,
+    }).catch((err) => console.error('[Email] Notification failed:', err));
+  }
+};
+
+const completeWorkshopPayment = async (txn: Record<string, unknown>): Promise<void> => {
+  const registrationId = txn['workshop_registration_id'] as string | undefined;
+  if (!registrationId) return;
+  await db.workshop_registrations().updateOne(
+    { _id: new ObjectId(registrationId) },
+    {
+      $set: {
+        payment_status: 'paid',
+        transaction_id: txn['transaction_id'],
+        show_meet_link: true,
+        updated_at: new Date(),
+      },
+    }
+  );
+};
+
 // ─── POST /payments/initiate ──────────────────────────────────────────────────
 
 router.post('/initiate', requireAuth, validate(PaymentInitiateSchema), async (req: Request, res: Response) => {
   const user = req.user!;
-  const { appointment_id } = req.body;
+  const { appointment_id, workshop_registration_id } = req.body;
 
-  let appt: Record<string, unknown> | null = null;
-  try {
-    appt = await db.appointments().findOne({ _id: new ObjectId(appointment_id) }) as Record<string, unknown> | null;
-  } catch {
-    res.status(404).json({ detail: 'Appointment not found' }); return;
+  let paymentSource: Record<string, unknown> | null = null;
+  let entityType: 'appointment' | 'workshop_registration' = 'appointment';
+  let amountRupees = 2000;
+  let paymentLabel = '';
+  let doctorName = '';
+  let eventDate = '';
+  let eventTime = '';
+
+  if (appointment_id) {
+    try {
+      paymentSource = await db.appointments().findOne({ _id: new ObjectId(appointment_id) }) as Record<string, unknown> | null;
+    } catch {
+      res.status(404).json({ detail: 'Appointment not found' }); return;
+    }
+    if (!paymentSource) { res.status(404).json({ detail: 'Appointment not found' }); return; }
+    if (paymentSource['user_id'] !== user['_id']) { res.status(403).json({ detail: 'Access denied' }); return; }
+    amountRupees = (paymentSource['consultation_fee'] as number) ?? 2000;
+    doctorName = (paymentSource['doctor_name'] as string) ?? '';
+    eventDate = (paymentSource['appointment_date'] as string) ?? '';
+    eventTime = (paymentSource['appointment_time'] as string) ?? '';
+    paymentLabel = `Consultation fee - ${doctorName}`;
+  } else {
+    entityType = 'workshop_registration';
+    try {
+      paymentSource = await db.workshop_registrations().findOne({ _id: new ObjectId(workshop_registration_id) }) as Record<string, unknown> | null;
+    } catch {
+      res.status(404).json({ detail: 'Workshop registration not found' }); return;
+    }
+    if (!paymentSource) { res.status(404).json({ detail: 'Workshop registration not found' }); return; }
+    if (paymentSource['user_id'] !== user['_id']) { res.status(403).json({ detail: 'Access denied' }); return; }
+    amountRupees = (paymentSource['price'] as number) ?? 0;
+    doctorName = (paymentSource['doctor_name'] as string) ?? '';
+    eventDate = (paymentSource['workshop_date'] as string) ?? '';
+    eventTime = (paymentSource['start_time'] as string) ?? '';
+    paymentLabel = `Workshop fee - ${paymentSource['title'] ?? doctorName}`;
   }
-  if (!appt) { res.status(404).json({ detail: 'Appointment not found' }); return; }
-  if (appt['user_id'] !== user['_id']) { res.status(403).json({ detail: 'Access denied' }); return; }
 
-  const amountPaise = Math.round(((appt['consultation_fee'] as number) ?? 2000) * 100);
+  const amountPaise = Math.round(amountRupees * 100);
   const merchantOrderId = `MC${uuidv4().replace(/-/g, '').slice(0, 14).toUpperCase()}`;
   const txnId = merchantOrderId;
   const redirectUrl = `${FRONTEND_URL}/payment/status?txnId=${txnId}`;
@@ -49,12 +115,12 @@ router.post('/initiate', requireAuth, validate(PaymentInitiateSchema), async (re
         expireAfter: 1200,
         metaInfo: {
           udf1: user['_id'],
-          udf2: appt['doctor_name'] ?? '',
-          udf3: String(appt['_id']),
+          udf2: doctorName,
+          udf3: String(paymentSource['_id']),
         },
         paymentFlow: {
           type: 'PG_CHECKOUT',
-          message: `Consultation fee - ${appt['doctor_name'] ?? ''}`,
+          message: paymentLabel,
           merchantUrls: { redirectUrl },
         },
       };
@@ -80,26 +146,35 @@ router.post('/initiate', requireAuth, validate(PaymentInitiateSchema), async (re
   }
 
   await db.transactions().insertOne({
-    appointment_id: String(appt['_id']),
+    appointment_id: appointment_id ? String(paymentSource['_id']) : null,
+    workshop_registration_id: workshop_registration_id ? String(paymentSource['_id']) : null,
+    entity_type: entityType,
     user_id: user['_id'] as string,
     merchant_order_id: merchantOrderId,
     transaction_id: txnId,
     amount: amountPaise,
     payment_state: 'PENDING',
     checkout_url: checkoutUrl,
-    doctor_name: (appt['doctor_name'] as string) ?? '',
-    appointment_date: (appt['appointment_date'] as string) ?? '',
-    appointment_time: (appt['appointment_time'] as string) ?? '',
+    doctor_name: doctorName,
+    appointment_date: eventDate,
+    appointment_time: eventTime,
     phonepe_env: PHONEPE_ENV,
     api_error: apiError,
     created_at: new Date(),
     updated_at: new Date(),
   });
 
-  await db.appointments().updateOne(
-    { _id: new ObjectId(appointment_id) },
-    { $set: { transaction_id: txnId } }
-  );
+  if (appointment_id) {
+    await db.appointments().updateOne(
+      { _id: new ObjectId(appointment_id) },
+      { $set: { transaction_id: txnId } }
+    );
+  } else {
+    await db.workshop_registrations().updateOne(
+      { _id: new ObjectId(workshop_registration_id) },
+      { $set: { transaction_id: txnId, updated_at: new Date() } }
+    );
+  }
 
   res.json({
     checkout_url: checkoutUrl,
@@ -138,29 +213,26 @@ router.get('/status/:txnId', async (req: Request, res: Response) => {
             );
             safeT['payment_state'] = newState;
             if (newState === 'COMPLETED') {
-              await db.appointments().updateOne(
-                { transaction_id: txnId },
-                { $set: { status: 'confirmed', payment_status: 'paid' } }
-              );
-              // Send confirmation email + create Google Meet
-              const apptForEmail = await db.appointments().findOne({ transaction_id: txnId }) as Record<string, unknown> | null;
-              if (apptForEmail) {
-                handlePaymentSuccessNotification({
-                  userEmail: (apptForEmail['patient_email'] as string) ?? '',
-                  userName: (apptForEmail['patient_name'] as string) ?? '',
-                  doctorName: (apptForEmail['doctor_name'] as string) ?? '',
-                  appointmentDate: (apptForEmail['appointment_date'] as string) ?? '',
-                  appointmentTime: (apptForEmail['appointment_time'] as string) ?? '',
-                  durationMinutes: (apptForEmail['duration_minutes'] as number) ?? 30,
-                  consultationFee: ((txn['amount'] as number) ?? 0) / 100,
-                  transactionId: txnId,
-                }).catch((err) => console.error('[Email] Notification failed:', err));
+              if (txn['entity_type'] === 'workshop_registration') {
+                await completeWorkshopPayment({ ...txn, transaction_id: txnId });
+              } else {
+                await completeAppointmentPayment(txnId, (txn['amount'] as number) ?? 0);
               }
             } else {
-              await db.appointments().updateOne(
-                { transaction_id: txnId },
-                { $set: { status: 'cancelled', payment_status: 'failed' } }
-              );
+              if (txn['entity_type'] === 'workshop_registration') {
+                const registrationId = txn['workshop_registration_id'] as string | undefined;
+                if (registrationId) {
+                  await db.workshop_registrations().updateOne(
+                    { _id: new ObjectId(registrationId) },
+                    { $set: { payment_status: 'failed', show_meet_link: false, updated_at: new Date() } }
+                  );
+                }
+              } else {
+                await db.appointments().updateOne(
+                  { transaction_id: txnId },
+                  { $set: { status: 'cancelled', payment_status: 'failed' } }
+                );
+              }
               const failAppt = await db.appointments().findOne({ transaction_id: txnId }) as Record<string, unknown> | null;
               if (failAppt) {
                 handlePaymentFailureNotification({
@@ -206,28 +278,22 @@ router.post('/simulate/:txnId/success', async (req: Request, res: Response) => {
     }
   );
   const appt = await db.appointments().findOne({ transaction_id: txnId }) as Record<string, unknown> | null;
-  if (appt) {
-    await db.appointments().updateOne(
-      { transaction_id: txnId },
-      { $set: { status: 'confirmed', payment_status: 'paid' } }
+  if (txn['entity_type'] === 'workshop_registration') {
+    await completeWorkshopPayment({ ...txn, transaction_id: txnId });
+    await logActivity(
+      txn['user_id'] as string,
+      'Patient',
+      'WORKSHOP_PAYMENT_SUCCESS',
+      `Workshop registration confirmed for ${txn['doctor_name'] ?? ''}`
     );
+  } else if (appt) {
     await logActivity(
       txn['user_id'] as string,
       'Patient',
       'PAYMENT_SUCCESS',
       `Appointment confirmed for ${appt['doctor_name'] ?? ''}`
     );
-    // Send confirmation email + create Google Meet
-    handlePaymentSuccessNotification({
-      userEmail: (appt['patient_email'] as string) ?? '',
-      userName: (appt['patient_name'] as string) ?? '',
-      doctorName: (appt['doctor_name'] as string) ?? '',
-      appointmentDate: (appt['appointment_date'] as string) ?? '',
-      appointmentTime: (appt['appointment_time'] as string) ?? '',
-      durationMinutes: (appt['duration_minutes'] as number) ?? 30,
-      consultationFee: ((txn['amount'] as number) ?? 0) / 100,
-      transactionId: txnId,
-    }).catch((err) => console.error('[Email] Notification failed:', err));
+    await completeAppointmentPayment(txnId, (txn['amount'] as number) ?? 0);
   }
   res.json({ message: 'Payment simulated successfully', transaction_id: txnId, provider_reference_id: provRef });
 });
@@ -243,10 +309,20 @@ router.post('/simulate/:txnId/failure', async (req: Request, res: Response) => {
     { transaction_id: txnId },
     { $set: { payment_state: 'FAILED', updated_at: new Date() } }
   );
-  await db.appointments().updateOne(
-    { transaction_id: txnId },
-    { $set: { status: 'cancelled', payment_status: 'failed' } }
-  );
+  if (txn['entity_type'] === 'workshop_registration') {
+    const registrationId = txn['workshop_registration_id'] as string | undefined;
+    if (registrationId) {
+      await db.workshop_registrations().updateOne(
+        { _id: new ObjectId(registrationId) },
+        { $set: { payment_status: 'failed', show_meet_link: false, updated_at: new Date() } }
+      );
+    }
+  } else {
+    await db.appointments().updateOne(
+      { transaction_id: txnId },
+      { $set: { status: 'cancelled', payment_status: 'failed' } }
+    );
+  }
   const failAppt = await db.appointments().findOne({ transaction_id: txnId }) as Record<string, unknown> | null;
   if (failAppt) {
     handlePaymentFailureNotification({
@@ -311,36 +387,33 @@ router.post('/webhook', async (req: Request, res: Response) => {
         { merchant_order_id: merchantOrderId },
         { $set: { payment_state: 'COMPLETED', updated_at: new Date() } }
       );
-      await db.appointments().updateOne(
-        { transaction_id: merchantOrderId },
-        { $set: { status: 'confirmed', payment_status: 'paid' } }
-      );
-      // Send confirmation email + create Google Meet
-      const whAppt = await db.appointments().findOne({ transaction_id: merchantOrderId }) as Record<string, unknown> | null;
       const whTxn = await db.transactions().findOne({ merchant_order_id: merchantOrderId }) as Record<string, unknown> | null;
-      if (whAppt) {
-        handlePaymentSuccessNotification({
-          userEmail: (whAppt['patient_email'] as string) ?? '',
-          userName: (whAppt['patient_name'] as string) ?? '',
-          doctorName: (whAppt['doctor_name'] as string) ?? '',
-          appointmentDate: (whAppt['appointment_date'] as string) ?? '',
-          appointmentTime: (whAppt['appointment_time'] as string) ?? '',
-          durationMinutes: (whAppt['duration_minutes'] as number) ?? 30,
-          consultationFee: ((whTxn?.['amount'] as number) ?? 0) / 100,
-          transactionId: merchantOrderId,
-        }).catch((err) => console.error('[Email] Webhook notification failed:', err));
+      if (whTxn?.['entity_type'] === 'workshop_registration') {
+        await completeWorkshopPayment({ ...whTxn, transaction_id: merchantOrderId });
+      } else {
+        await completeAppointmentPayment(merchantOrderId, (whTxn?.['amount'] as number) ?? 0);
       }
     } else if (isFailure) {
       await db.transactions().updateOne(
         { merchant_order_id: merchantOrderId },
         { $set: { payment_state: 'FAILED', updated_at: new Date() } }
       );
-      await db.appointments().updateOne(
-        { transaction_id: merchantOrderId },
-        { $set: { status: 'cancelled', payment_status: 'failed' } }
-      );
-      const whFailAppt = await db.appointments().findOne({ transaction_id: merchantOrderId }) as Record<string, unknown> | null;
       const whFailTxn = await db.transactions().findOne({ merchant_order_id: merchantOrderId }) as Record<string, unknown> | null;
+      if (whFailTxn?.['entity_type'] === 'workshop_registration') {
+        const registrationId = whFailTxn['workshop_registration_id'] as string | undefined;
+        if (registrationId) {
+          await db.workshop_registrations().updateOne(
+            { _id: new ObjectId(registrationId) },
+            { $set: { payment_status: 'failed', show_meet_link: false, updated_at: new Date() } }
+          );
+        }
+      } else {
+        await db.appointments().updateOne(
+          { transaction_id: merchantOrderId },
+          { $set: { status: 'cancelled', payment_status: 'failed' } }
+        );
+      }
+      const whFailAppt = await db.appointments().findOne({ transaction_id: merchantOrderId }) as Record<string, unknown> | null;
       if (whFailAppt) {
         handlePaymentFailureNotification({
           userEmail: (whFailAppt['patient_email'] as string) ?? '',
@@ -363,3 +436,4 @@ router.post('/webhook', async (req: Request, res: Response) => {
 });
 
 export default router;
+

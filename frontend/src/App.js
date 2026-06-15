@@ -8,6 +8,10 @@ import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
 import DoctorsPage from './pages/DoctorsPage';
+import AboutPage from './pages/AboutPage';
+import TermsPage from './pages/TermsPage';
+import RefundPolicyPage from './pages/RefundPolicyPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import './App.css';
 
 // Heavier routes are code-split to keep the initial bundle small.
@@ -17,6 +21,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const PaymentStatus = lazy(() => import('./pages/PaymentStatus'));
 const PaymentSimulation = lazy(() => import('./pages/PaymentSimulation'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const WorkshopsPage = lazy(() => import('./pages/WorkshopsPage'));
 
 const RouteFallback = () => (
   <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-mc-bg" data-testid="route-loader">
@@ -40,7 +45,12 @@ function App() {
                 <Route path="/register" element={<AuthPage />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/doctors" element={<DoctorsPage />} />
+                <Route path="/workshops" element={<WorkshopsPage />} />
                 <Route path="/doctors/:id" element={<BookingPage />} />
+<Route path="/about" element={<AboutPage />} />
+                <Route path="/policies/terms" element={<TermsPage />} />
+                <Route path="/policies/refund" element={<RefundPolicyPage />} />
+                <Route path="/policies/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/payment/status" element={<PaymentStatus />} />
                 <Route path="/payment/simulate/:txnId" element={<PaymentSimulation />} />
                 <Route path="/dashboard" element={

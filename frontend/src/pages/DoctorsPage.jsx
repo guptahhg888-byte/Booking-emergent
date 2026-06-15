@@ -112,10 +112,12 @@ const DoctorsPage = () => {
                       <div>
                         <p className="text-xs text-mc-text-secondary">Consult Fee</p>
                         {(() => {
-                          const fee = convertFee(doc.consultation_fee);
+                          const servicePrices = doc.services?.map(service => Number(service.price)).filter(price => !Number.isNaN(price)) || [];
+                          const basePrice = servicePrices.length ? Math.min(...servicePrices) : doc.consultation_fee;
+                          const fee = convertFee(basePrice);
                           return (
                             <>
-                              <p className="font-heading text-mc-primary font-600">{fee.display}</p>
+                              <p className="font-heading text-mc-primary font-600">{servicePrices.length ? `From ${fee.display}` : fee.display}</p>
                               {fee.isInternational && (
                                 <p className="text-[10px] text-mc-text-secondary mt-0.5">{fee.displayINR} INR</p>
                               )}

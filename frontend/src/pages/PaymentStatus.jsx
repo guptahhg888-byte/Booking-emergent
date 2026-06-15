@@ -37,6 +37,7 @@ const PaymentStatus = () => {
   );
 
   const state = txn?.payment_state || 'UNKNOWN';
+  const isWorkshop = txn?.entity_type === 'workshop_registration';
 
   return (
     <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-mc-bg px-4 py-12">
@@ -60,7 +61,7 @@ const PaymentStatus = () => {
             {state === 'COMPLETED' ? 'Payment Successful!' : state === 'FAILED' ? 'Payment Failed' : 'Payment Pending'}
           </h2>
           <p className="text-mc-text-secondary text-sm mt-2 font-body">
-            {state === 'COMPLETED' ? 'Your appointment has been confirmed.' : state === 'FAILED' ? 'Your payment could not be processed.' : 'Your payment is being processed.'}
+            {state === 'COMPLETED' ? (isWorkshop ? 'Your workshop registration has been confirmed.' : 'Your appointment has been confirmed.') : state === 'FAILED' ? 'Your payment could not be processed.' : 'Your payment is being processed.'}
           </p>
         </div>
 
@@ -73,7 +74,7 @@ const PaymentStatus = () => {
                 { label: 'Transaction ID', value: txn.transaction_id },
                 { label: 'Amount', value: `₹${((txn.amount || 0) / 100).toLocaleString()}` },
                 { label: 'Doctor', value: txn.doctor_name },
-                { label: 'Appointment', value: txn.appointment_date && txn.appointment_time ? `${txn.appointment_date} at ${txn.appointment_time}` : null },
+                 { label: isWorkshop ? 'Workshop' : 'Appointment', value: txn.appointment_date && txn.appointment_time ? `${txn.appointment_date} at ${txn.appointment_time}` : null },
                 { label: 'Status', value: state },
                 txn.provider_reference_id && { label: 'Reference ID', value: txn.provider_reference_id },
               ].filter(Boolean).filter(r => r.value).map((row, i) => (
@@ -92,7 +93,7 @@ const PaymentStatus = () => {
         <div className="px-6 pb-6 space-y-3">
           {state === 'COMPLETED' && (
             <a href="/dashboard" className="w-full flex items-center justify-center gap-2 bg-mc-primary text-white font-medium rounded-xl py-3.5 text-sm font-body hover:bg-mc-primary-hover transition-all" data-testid="view-appointments-btn">
-              View My Appointments <ArrowRight size={16} />
+              {isWorkshop ? 'View My Workshops' : 'View My Appointments'} <ArrowRight size={16} />
             </a>
           )}
           {state === 'FAILED' && (

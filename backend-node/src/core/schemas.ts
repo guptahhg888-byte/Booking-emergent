@@ -26,6 +26,13 @@ export const ProfileUpdateSchema = z.object({
   address: z.string().nullish(),
 });
 
+const DoctorServiceSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  price: z.number().nonnegative(),
+  duration_minutes: z.number().int().positive().optional().nullish(),
+});
+
 export const DoctorCreateSchema = z.object({
   name: z.string().min(1),
   specialization: z.string().min(1),
@@ -44,12 +51,14 @@ export const DoctorCreateSchema = z.object({
   slot_duration_minutes: z.number().int().default(30),
   lunch_start: z.string().optional().default('13:00'),
   lunch_end: z.string().optional().default('14:00'),
+services: z.array(DoctorServiceSchema).optional().default([]),
 });
 
 export const AppointmentCreateSchema = z.object({
   doctor_id: z.string(),
   appointment_date: z.string(),
   appointment_time: z.string(),
+service_id: z.string().nullish(),
   duration_minutes: z.number().int().nullish(),
   country_code: z.string().max(3).default('IN'),
   notes: z.string().nullish(),
@@ -61,7 +70,10 @@ export const RescheduleSchema = z.object({
 });
 
 export const PaymentInitiateSchema = z.object({
-  appointment_id: z.string(),
+  appointment_id: z.string().optional(),
+  workshop_registration_id: z.string().optional(),
+}).refine((data) => !!data.appointment_id !== !!data.workshop_registration_id, {
+  message: 'Provide either appointment_id or workshop_registration_id',
 });
 
 export const DoctorSlotsSchema = z.object({
@@ -70,6 +82,25 @@ export const DoctorSlotsSchema = z.object({
     z.string().regex(/^\d{2}:\d{2}$/, 'Each slot must be in HH:MM format')
   ).min(1, 'At least one slot is required'),
 });
+
+export const DoctorBlockedDateSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  reason: z.string().optional().default('Blocked by admin'),
+});
+
+export const WorkshopCreateSchema = z.object({
+  title: z.string().min(1),
+  doctor_id: z.string().min(1),
+  workshop_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/),
+  duration_minutes: z.number().int().positive().default(60),
+  price: z.number().nonnegative(),
+  gmeet_link: z.string().url(),
+  description: z.string().optional().default(''),
+  capacity: z.number().int().positive().optional().nullish(),
+  is_active: z.boolean().optional().default(true),
+});
+
 
 // Middleware factory: validates req.body against a Zod schema
 import { Request, Response, NextFunction } from 'express';

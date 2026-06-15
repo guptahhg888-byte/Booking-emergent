@@ -18,4 +18,6 @@ export const db = {
   transactions: () => mongoose.connection.collection('transactions'),
   activity_logs: () => mongoose.connection.collection('activity_logs'),
   doctor_slots: () => mongoose.connection.collection('doctor_slots'),
+  workshops: () => mongoose.connection.collection('workshops'),
+  workshop_registrations: () => mongoose.connection.collection('workshop_registrations'),
 };

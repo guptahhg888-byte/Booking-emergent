@@ -10,7 +10,7 @@ import {
 import api from '../utils/api';
 import { COUNTRY_CONFIG } from '../contexts/CurrencyContext';
 
-const TABS = ['Overview', 'Doctors', 'Appointments', 'Users', 'Payments'];
+const TABS = ['Overview', 'Doctors', 'Workshops', 'Appointments', 'Users', 'Payments'];
 const PIE_COLORS = ['#2C5545', '#8A9A86', '#D9734E', '#5C6B64'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -37,6 +37,20 @@ const EMPTY_FORM = {
   start_time: '09:00', end_time: '17:00', slot_duration_minutes: 30,
   lunch_start: '13:00', lunch_end: '14:00',
   fee_45min: '', fee_60min: '',
+  services: [{ id: 'svc_default', name: 'Consultation', price: 2000, duration_minutes: 30 }],
+};
+
+const EMPTY_WORKSHOP_FORM = {
+  title: '',
+  doctor_id: '',
+  workshop_date: '',
+  start_time: '18:00',
+  duration_minutes: 60,
+  price: 0,
+  gmeet_link: '',
+  capacity: '',
+  description: '',
+  is_active: true,
 };
 
 const AdminDashboard = () => {
@@ -46,6 +60,7 @@ const AdminDashboard = () => {
   const [appointments, setAppointments] = useState([]);
   const [users, setUsers] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [workshops, setWorkshops] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,6 +81,15 @@ const AdminDashboard = () => {
   const [slotSaving, setSlotSaving] = useState(false);
   const [slotError, setSlotError] = useState('');
   const [newSlotTime, setNewSlotTime] = useState('09:00');
+  const [isBlockedDate, setIsBlockedDate] = useState(false);
+  const [blockReason, setBlockReason] = useState('');
+
+  // Workshop modal
+  const [showWorkshopModal, setShowWorkshopModal] = useState(false);
+  const [editWorkshop, setEditWorkshop] = useState(null);
+  const [workshopForm, setWorkshopForm] = useState(EMPTY_WORKSHOP_FORM);
+  const [workshopSaving, setWorkshopSaving] = useState(false);
+  const [workshopError, setWorkshopError] = useState('');
 
   const fetchStats = useCallback(() => {
     api.get('/admin/stats').then(r => setStats(r.data)).catch(console.error);
@@ -87,6 +111,10 @@ const AdminDashboard = () => {
     api.get('/admin/transactions').then(r => setTransactions(r.data)).catch(console.error);
   }, []);
 
+  const fetchWorkshops = useCallback(() => {
+    api.get('/workshops/admin/all').then(r => setWorkshops(r.data)).catch(console.error);
+  }, []);
+
   const fetchActivity = useCallback(() => {
     api.get('/admin/activity').then(r => setActivityLogs(r.data)).catch(console.error);
   }, []);
@@ -99,6 +127,7 @@ const AdminDashboard = () => {
     if (activeTab === 'Appointments' && appointments.length === 0) fetchAppointments();
     if (activeTab === 'Users' && users.length === 0) fetchUsers();
     if (activeTab === 'Payments' && transactions.length === 0) fetchTransactions();
+    if (activeTab === 'Workshops' && workshops.length === 0) fetchWorkshops();
     if (activeTab === 'Overview' && activityLogs.length === 0) fetchActivity();
   }, [activeTab]);
 
@@ -117,6 +146,7 @@ const AdminDashboard = () => {
       lunch_end: doc.lunch_end || '',
       fee_45min: doc.fee_45min != null ? doc.fee_45min : '',
       fee_60min: doc.fee_60min != null ? doc.fee_60min : '',
+      services: doc.services?.length ? doc.services : [{ id: 'svc_default', name: 'Consultation', price: doc.consultation_fee || 2000, duration_minutes: doc.slot_duration_minutes || 30 }],
     });
     setFormError('');
     setShowModal(true);
@@ -136,6 +166,14 @@ const AdminDashboard = () => {
         lunch_end: docForm.lunch_end || null,
         fee_45min: docForm.fee_45min !== '' ? parseFloat(docForm.fee_45min) : null,
         fee_60min: docForm.fee_60min !== '' ? parseFloat(docForm.fee_60min) : null,
+        services: docForm.services
+          .filter(service => service.name && service.price !== '')
+          .map((service, index) => ({
+            id: service.id || `svc_${Date.now()}_${index}`,
+            name: service.name,
+            price: parseFloat(service.price),
+            duration_minutes: service.duration_minutes ? parseInt(service.duration_minutes) : null,
+          })),
       };
       if (editDoctor) {
         await api.put(`/doctors/${editDoctor._id}`, payload);
@@ -182,6 +220,83 @@ const AdminDashboard = () => {
     }));
   };
 
+  const updateService = (index, key, value) => {
+    setDocForm(prev => ({
+      ...prev,
+      services: prev.services.map((service, i) => i === index ? { ...service, [key]: value } : service),
+    }));
+  };
+
+  const addService = () => {
+    setDocForm(prev => ({
+      ...prev,
+      services: [...prev.services, { id: `svc_${Date.now()}`, name: '', price: '', duration_minutes: '' }],
+    }));
+  };
+
+  const removeService = (index) => {
+    setDocForm(prev => ({
+      ...prev,
+      services: prev.services.length > 1 ? prev.services.filter((_, i) => i !== index) : prev.services,
+    }));
+  };
+
+  const openWorkshopAdd = () => {
+    setEditWorkshop(null);
+    setWorkshopForm({ ...EMPTY_WORKSHOP_FORM, doctor_id: doctors[0]?._id || '' });
+    setWorkshopError('');
+    setShowWorkshopModal(true);
+  };
+
+  const openWorkshopEdit = (workshop) => {
+    setEditWorkshop(workshop);
+    setWorkshopForm({
+      title: workshop.title || '',
+      doctor_id: workshop.doctor_id || '',
+      workshop_date: workshop.workshop_date || '',
+      start_time: workshop.start_time || '18:00',
+      duration_minutes: workshop.duration_minutes || 60,
+      price: workshop.price || 0,
+      gmeet_link: workshop.gmeet_link || '',
+      capacity: workshop.capacity || '',
+      description: workshop.description || '',
+      is_active: workshop.is_active !== false,
+    });
+    setWorkshopError('');
+    setShowWorkshopModal(true);
+  };
+
+  const saveWorkshop = async (e) => {
+    e.preventDefault();
+    setWorkshopSaving(true);
+    setWorkshopError('');
+    const payload = {
+      ...workshopForm,
+      duration_minutes: parseInt(workshopForm.duration_minutes) || 60,
+      price: parseFloat(workshopForm.price) || 0,
+      capacity: workshopForm.capacity ? parseInt(workshopForm.capacity) : null,
+    };
+    try {
+      if (editWorkshop) {
+        await api.put(`/workshops/${editWorkshop._id}`, payload);
+      } else {
+        await api.post('/workshops', payload);
+      }
+      setShowWorkshopModal(false);
+      fetchWorkshops();
+    } catch (err) {
+      setWorkshopError(err.response?.data?.detail || 'Failed to save workshop');
+    } finally {
+      setWorkshopSaving(false);
+    }
+  };
+
+  const deleteWorkshop = async (workshop) => {
+    if (!window.confirm(`Delete workshop "${workshop.title}"?`)) return;
+    await api.delete(`/workshops/${workshop._id}`);
+    setWorkshops(prev => prev.filter(item => item._id !== workshop._id));
+  };
+
   // Slot management handlers
   const openSlotModal = (doc) => {
     setSlotDoctor(doc);
@@ -190,6 +305,8 @@ const AdminDashboard = () => {
     setIsCustomSlots(false);
     setSlotError('');
     setNewSlotTime('09:00');
+    setIsBlockedDate(false);
+    setBlockReason('');
     setShowSlotModal(true);
   };
 
@@ -199,13 +316,22 @@ const AdminDashboard = () => {
     setSlotError('');
     try {
       const customRes = await api.get(`/doctors/${doctorId}/slots`, { params: { date } });
-      if (customRes.data.is_custom && customRes.data.custom_slots) {
+      if (customRes.data.is_blocked) {
+        setSlotList([]);
+        setIsCustomSlots(true);
+        setIsBlockedDate(true);
+        setBlockReason(customRes.data.block_reason || '');
+      } else if (customRes.data.is_custom && customRes.data.custom_slots) {
         setSlotList(customRes.data.custom_slots);
         setIsCustomSlots(true);
+        setIsBlockedDate(false);
+        setBlockReason('');
       } else {
         const availRes = await api.get(`/doctors/${doctorId}/available-slots`, { params: { date } });
         setSlotList(availRes.data.available_slots || []);
         setIsCustomSlots(false);
+        setIsBlockedDate(false);
+        setBlockReason('');
       }
     } catch (err) {
       setSlotError('Failed to fetch slots');
@@ -248,9 +374,30 @@ const AdminDashboard = () => {
     try {
       await api.post(`/doctors/${slotDoctor._id}/slots`, { date: slotDate, slots: slotList });
       setIsCustomSlots(true);
+      setIsBlockedDate(false);
+      setBlockReason('');
       setSlotError('');
     } catch (err) {
       setSlotError(err.response?.data?.detail || 'Failed to save slots');
+    } finally {
+      setSlotSaving(false);
+    }
+  };
+
+  const blockDate = async () => {
+    if (!slotDoctor || !slotDate) {
+      setSlotError('Please select a date to block');
+      return;
+    }
+    setSlotSaving(true);
+    setSlotError('');
+    try {
+      await api.post(`/doctors/${slotDoctor._id}/block-date`, { date: slotDate, reason: blockReason || 'Blocked by admin' });
+      setSlotList([]);
+      setIsCustomSlots(true);
+      setIsBlockedDate(true);
+    } catch (err) {
+      setSlotError(err.response?.data?.detail || 'Failed to block date');
     } finally {
       setSlotSaving(false);
     }
@@ -264,6 +411,8 @@ const AdminDashboard = () => {
     try {
       await api.delete(`/doctors/${slotDoctor._id}/slots`, { params: { date: slotDate } });
       await fetchSlotsForDate(slotDoctor._id, slotDate);
+      setIsBlockedDate(false);
+      setBlockReason('');
     } catch (err) {
       setSlotError(err.response?.data?.detail || 'Failed to reset slots');
     } finally {
@@ -487,6 +636,65 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {/* WORKSHOPS TAB */}
+        {activeTab === 'Workshops' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-heading text-xl text-mc-text font-700">Workshops ({workshops.length})</h2>
+              <button onClick={openWorkshopAdd} className="flex items-center gap-2 btn-primary text-sm px-5 py-2.5">
+                <Plus size={16} /> Create Workshop
+              </button>
+            </div>
+            <div className="bg-mc-surface border border-mc-border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full font-body text-sm">
+                  <thead className="bg-mc-bg border-b border-mc-border">
+                    <tr>
+                      {['Workshop', 'Doctor', 'Date', 'Price', 'Meet', 'Status', 'Actions'].map(h => (
+                        <th key={h} className="px-4 py-3.5 text-left text-xs font-medium text-mc-text-secondary uppercase tracking-wider">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-mc-border">
+                    {workshops.map(workshop => (
+                      <tr key={workshop._id} className="hover:bg-mc-bg transition-colors">
+                        <td className="px-4 py-4">
+                          <p className="font-medium text-mc-text">{workshop.title}</p>
+                          <p className="text-xs text-mc-text-secondary max-w-xs truncate">{workshop.description || 'No description'}</p>
+                        </td>
+                        <td className="px-4 py-4 text-mc-text-secondary">{workshop.doctor_name || '—'}</td>
+                        <td className="px-4 py-4 text-mc-text-secondary">{workshop.workshop_date} at {workshop.start_time}</td>
+                        <td className="px-4 py-4 font-medium text-mc-primary">₹{Number(workshop.price || 0).toLocaleString()}</td>
+                        <td className="px-4 py-4 text-mc-text-secondary max-w-[180px] truncate">{workshop.gmeet_link}</td>
+                        <td className="px-4 py-4">
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${workshop.is_active !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                            {workshop.is_active !== false ? 'Active' : 'Hidden'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => openWorkshopEdit(workshop)} className="p-2 hover:bg-mc-bg rounded-lg text-mc-text-secondary hover:text-mc-primary transition-colors">
+                              <Edit size={15} />
+                            </button>
+                            <button onClick={() => deleteWorkshop(workshop)} className="p-2 hover:bg-red-50 rounded-lg text-mc-text-secondary hover:text-red-600 transition-colors">
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {workshops.length === 0 && (
+                  <div className="py-12 text-center text-mc-text-secondary font-body text-sm">
+                    <CalendarClock size={32} className="mx-auto text-mc-border mb-2" /><p>No workshops yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* APPOINTMENTS TAB */}
         {activeTab === 'Appointments' && (
           <div>
@@ -703,9 +911,9 @@ const AdminDashboard = () => {
               {slotDate && (
                 <>
                   {/* Status indicator */}
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-body ${isCustomSlots ? 'bg-blue-50 text-blue-700' : 'bg-mc-bg text-mc-text-secondary'}`}>
-                    {isCustomSlots ? <CalendarClock size={14} /> : <Clock size={14} />}
-                    {isCustomSlots ? 'Using custom slots for this date' : 'Using auto-generated default slots'}
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-body ${isBlockedDate ? 'bg-red-50 text-red-700' : isCustomSlots ? 'bg-blue-50 text-blue-700' : 'bg-mc-bg text-mc-text-secondary'}`}>
+                    {isBlockedDate ? <XCircle size={14} /> : isCustomSlots ? <CalendarClock size={14} /> : <Clock size={14} />}
+                    {isBlockedDate ? `Booking disabled${blockReason ? `: ${blockReason}` : ''}` : isCustomSlots ? 'Using custom slots for this date' : 'Using auto-generated default slots'}
                   </div>
 
                   {slotLoading ? (
@@ -736,6 +944,27 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
+                      <div className="border border-red-100 bg-red-50 rounded-xl p-3">
+                        <label className="block text-xs font-medium text-red-800 mb-1.5 font-body">Disable booking for this date</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={blockReason}
+                            onChange={e => setBlockReason(e.target.value)}
+                            placeholder="Reason shown in CRM"
+                            className="flex-1 px-3 py-2.5 border border-red-200 rounded-lg text-mc-text text-sm font-body bg-white focus:outline-none focus:border-red-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={blockDate}
+                            disabled={slotSaving}
+                            className="text-sm px-4 py-2.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-body"
+                          >
+                            Block Date
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Slot list */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
@@ -749,7 +978,7 @@ const AdminDashboard = () => {
                         {slotList.length === 0 ? (
                           <div className="py-6 text-center text-mc-text-secondary text-sm font-body border border-dashed border-mc-border rounded-lg">
                             <Clock size={24} className="mx-auto text-mc-border mb-2" />
-                            <p>No slots defined. Add time slots above.</p>
+                            <p>{isBlockedDate ? 'Bookings are disabled for this date.' : 'No slots defined. Add time slots above.'}</p>
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
@@ -775,7 +1004,7 @@ const AdminDashboard = () => {
 
                       {/* Action buttons */}
                       <div className="flex gap-3 pt-2 border-t border-mc-border">
-                        {isCustomSlots && (
+                        {(isCustomSlots || isBlockedDate) && (
                           <button
                             type="button"
                             onClick={resetToDefault}
@@ -805,6 +1034,74 @@ const AdminDashboard = () => {
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workshop Modal */}
+      {showWorkshopModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-fade-in">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-mc-border">
+              <h2 className="font-heading text-lg text-mc-text font-700">{editWorkshop ? 'Edit Workshop' : 'Create Workshop'}</h2>
+              <button onClick={() => setShowWorkshopModal(false)} className="text-mc-text-secondary hover:text-mc-text transition-colors p-1">
+                <XCircle size={22} />
+              </button>
+            </div>
+            <form onSubmit={saveWorkshop} className="p-6 space-y-4">
+              {workshopError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 font-body">{workshopError}</div>}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Title *</label>
+                  <input type="text" value={workshopForm.title} onChange={e => setWorkshopForm(p => ({ ...p, title: e.target.value }))} required className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Doctor *</label>
+                  <select value={workshopForm.doctor_id} onChange={e => setWorkshopForm(p => ({ ...p, doctor_id: e.target.value }))} required className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary">
+                    <option value="">Select doctor</option>
+                    {doctors.map(doc => <option key={doc._id} value={doc._id}>{doc.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Date *</label>
+                  <input type="date" value={workshopForm.workshop_date} onChange={e => setWorkshopForm(p => ({ ...p, workshop_date: e.target.value }))} required className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Start Time *</label>
+                  <input type="time" value={workshopForm.start_time} onChange={e => setWorkshopForm(p => ({ ...p, start_time: e.target.value }))} required className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Duration (min)</label>
+                  <input type="number" value={workshopForm.duration_minutes} onChange={e => setWorkshopForm(p => ({ ...p, duration_minutes: e.target.value }))} min="1" className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Price (₹) *</label>
+                  <input type="number" value={workshopForm.price} onChange={e => setWorkshopForm(p => ({ ...p, price: e.target.value }))} min="0" required className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Capacity</label>
+                  <input type="number" value={workshopForm.capacity} onChange={e => setWorkshopForm(p => ({ ...p, capacity: e.target.value }))} min="1" placeholder="Optional" className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Google Meet Link *</label>
+                  <input type="url" value={workshopForm.gmeet_link} onChange={e => setWorkshopForm(p => ({ ...p, gmeet_link: e.target.value }))} required placeholder="https://meet.google.com/..." className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-mc-text mb-1.5 font-body">Description</label>
+                  <textarea value={workshopForm.description} onChange={e => setWorkshopForm(p => ({ ...p, description: e.target.value }))} rows={3} className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary resize-none" />
+                </div>
+                <label className="col-span-2 flex items-center gap-2 text-sm text-mc-text font-body">
+                  <input type="checkbox" checked={workshopForm.is_active} onChange={e => setWorkshopForm(p => ({ ...p, is_active: e.target.checked }))} />
+                  Visible for users
+                </label>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowWorkshopModal(false)} className="flex-1 btn-secondary text-sm py-3">Cancel</button>
+                <button type="submit" disabled={workshopSaving} className="flex-1 btn-primary text-sm py-3 flex items-center justify-center gap-2">
+                  {workshopSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><CheckCircle size={16} />Save Workshop</>}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -858,6 +1155,59 @@ const AdminDashboard = () => {
                       className={`text-xs px-3 py-1.5 rounded-full border transition-all font-body ${docForm.available_days.includes(day) ? 'bg-mc-primary text-white border-mc-primary' : 'border-mc-border text-mc-text-secondary hover:border-mc-secondary'}`}
                       data-testid={`day-toggle-${day}`}
                     >{day.slice(0, 3)}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Services */}
+              <div className="border-t border-mc-border pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <label className="block text-xs font-medium text-mc-text font-body">Services & Pricing</label>
+                    <p className="text-[11px] text-mc-text-secondary font-body">Add the services users can choose. The backend uses these prices for payment.</p>
+                  </div>
+                  <button type="button" onClick={addService} className="text-xs px-3 py-1.5 rounded-lg border border-mc-border text-mc-text hover:border-mc-primary font-body">
+                    Add Service
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {docForm.services.map((service, index) => (
+                    <div key={service.id || index} className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-5">
+                        <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Service</label>
+                        <input
+                          type="text"
+                          value={service.name}
+                          onChange={e => updateService(index, 'name', e.target.value)}
+                          placeholder="Consultation / Therapy / Follow-up"
+                          className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Price (₹)</label>
+                        <input
+                          type="number"
+                          value={service.price}
+                          onChange={e => updateService(index, 'price', e.target.value)}
+                          min="0"
+                          className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-[11px] text-mc-text-secondary mb-1 font-body">Duration</label>
+                        <input
+                          type="number"
+                          value={service.duration_minutes || ''}
+                          onChange={e => updateService(index, 'duration_minutes', e.target.value)}
+                          placeholder="30"
+                          min="1"
+                          className="w-full px-3 py-2.5 border border-mc-border rounded-lg text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary"
+                        />
+                      </div>
+                      <button type="button" onClick={() => removeService(index)} className="col-span-1 p-2.5 rounded-lg text-mc-text-secondary hover:text-red-600 hover:bg-red-50">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -967,3 +1317,4 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+

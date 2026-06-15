@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Menu, X, Stethoscope, ChevronDown, User, LayoutDashboard, LogOut, ShieldCheck, UserCog, Globe } from 'lucide-react';
+import { Menu, X, Stethoscope, ChevronDown, User, LayoutDashboard, LogOut, ShieldCheck, UserCog, Globe, FileText } from 'lucide-react';
+import { POLICY_LINKS } from '../content/siteContent';
 
 const DIAL_TO_COUNTRY = {
   '+91': 'IN', '+44': 'GB', '+49': 'DE', '+33': 'FR', '+971': 'AE',
@@ -19,13 +20,18 @@ const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
+  const [policiesOpen, setPoliciesOpen] = useState(false);
   const currencyRef = useRef(null);
+  const policiesRef = useRef(null);
 
   // Close currency dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (currencyRef.current && !currencyRef.current.contains(e.target)) {
         setCurrencyOpen(false);
+      }
+      if (policiesRef.current && !policiesRef.current.contains(e.target)) {
+        setPoliciesOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -61,6 +67,7 @@ const Navbar = () => {
   };
 
   const isActive = (path) => location.pathname === path;
+  const isPoliciesActive = location.pathname.startsWith('/policies');
 
   return (
     <nav className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-mc-border shadow-sm">
@@ -86,6 +93,48 @@ const Navbar = () => {
               className={`font-body text-sm font-medium transition-colors ${isActive('/doctors') ? 'text-mc-primary' : 'text-mc-text-secondary hover:text-mc-text'}`}
               data-testid="nav-doctors"
             >Find Doctors</Link>
+            <Link
+              to="/workshops"
+              className={`font-body text-sm font-medium transition-colors ${isActive('/workshops') ? 'text-mc-primary' : 'text-mc-text-secondary hover:text-mc-text'}`}
+              data-testid="nav-workshops"
+            >Workshops</Link>
+            <Link
+              to="/about"
+              className={`font-body text-sm font-medium transition-colors ${isActive('/about') ? 'text-mc-primary' : 'text-mc-text-secondary hover:text-mc-text'}`}
+              data-testid="nav-about"
+            >About</Link>
+            <div className="relative" ref={policiesRef}>
+              <button
+                type="button"
+                onClick={() => setPoliciesOpen((o) => !o)}
+                className={`flex items-center gap-1 font-body text-sm font-medium transition-colors ${isPoliciesActive ? 'text-mc-primary' : 'text-mc-text-secondary hover:text-mc-text'}`}
+                data-testid="nav-policies"
+              >
+                Policies
+                <ChevronDown size={14} className={`transition-transform ${policiesOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {policiesOpen && (
+                <div className="absolute left-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-mc-border overflow-hidden animate-fade-in z-50">
+                  <div className="px-3 py-2 border-b border-mc-border flex items-center gap-2">
+                    <FileText size={14} className="text-mc-primary" />
+                    <p className="text-[11px] text-mc-text-secondary font-body">Legal & policies</p>
+                  </div>
+                  {POLICY_LINKS.map((link) => (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      onClick={() => setPoliciesOpen(false)}
+                      className={`block px-4 py-2.5 text-sm font-body hover:bg-mc-bg transition-colors ${
+                        location.pathname === link.path ? 'text-mc-primary font-medium bg-mc-primary/5' : 'text-mc-text'
+                      }`}
+                      data-testid={`nav-policy-${link.path.split('/').pop()}`}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Auth / User */}
@@ -222,6 +271,19 @@ const Navbar = () => {
         <div className="md:hidden bg-white border-t border-mc-border px-4 pb-4 pt-2 space-y-2 animate-fade-in">
           <Link to="/" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-body text-mc-text">Home</Link>
           <Link to="/doctors" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-body text-mc-text">Find Doctors</Link>
+          <Link to="/about" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-body text-mc-text">About</Link>
+          <Link to="/workshops" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-body text-mc-text">Workshops</Link>
+          <p className="pt-2 pb-1 text-xs uppercase tracking-wider text-mc-text-secondary font-body">Policies</p>
+          {POLICY_LINKS.map((link) => (
+            <Link
+              key={link.path}
+              to={link.path}
+              onClick={() => setMobileOpen(false)}
+              className="block py-2 pl-3 text-sm font-body text-mc-text-secondary"
+            >
+              {link.label}
+            </Link>
+          ))}
           {user ? (
             <>
               {user.role === 'admin' && (
@@ -244,3 +306,4 @@ const Navbar = () => {
 };
 
 export default Navbar;
+

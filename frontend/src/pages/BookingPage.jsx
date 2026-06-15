@@ -21,7 +21,15 @@ const formatDate = (date) => {
  * Falls back to a single "Standard" option using consultation_fee if neither is set.
  */
 const buildDurationOptions = (doctor) => {
-  const options = [];
+  if (doctor.services?.length) {
+    return doctor.services.map(service => ({
+      label: service.name,
+      minutes: service.duration_minutes || null,
+      fee: service.price,
+      serviceId: service.id,
+    }));
+  } 
+ const options = [];
 
   if (doctor.fee_45min != null) {
     options.push({ label: '45 min', minutes: 45, fee: doctor.fee_45min });
@@ -74,7 +82,14 @@ const BookingPage = () => {
       setSlotsLoading(true);
       setSelectedTime('');
       api.get(`/doctors/${id}/available-slots`, { params: { date: dateStr } })
-        .then(res => setAvailableSlots(res.data.available_slots || []))
+        .then(res => {
+          setAvailableSlots(res.data.available_slots || []);
+          if (res.data.is_blocked) {
+            setError(res.data.block_reason || 'Bookings are disabled for this date.');
+          } else {
+            setError('');
+          }
+        })
         .catch(() => setAvailableSlots([]))
         .finally(() => setSlotsLoading(false));
     }
@@ -96,6 +111,7 @@ const BookingPage = () => {
         doctor_id: id,
         appointment_date: formatDate(selectedDate),
         appointment_time: selectedTime,
+        service_id: selectedDuration?.serviceId ?? null,
         duration_minutes: selectedDuration?.minutes ?? null,
         country_code: countryCode,
         notes: notes || null

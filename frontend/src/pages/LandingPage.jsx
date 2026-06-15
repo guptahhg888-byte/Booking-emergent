@@ -4,6 +4,121 @@ import { Stethoscope, Calendar, CreditCard, Star, ArrowRight, CheckCircle, Users
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import ServicesPricingSection from '../components/ServicesPricingSection';
+import { POLICY_LINKS } from '../content/siteContent';
+
+const podcasts = [
+  {
+    url: "https://youtu.be/z5KAKDuvXD4?si=VnGk1zo_VH_cIQXM",
+  },
+  {
+    url: "https://youtu.be/3FgAiOI8JjQ?si=uYkdyInquqNWasTZ",
+  },
+  {
+    url: "https://youtu.be/2xpSTxk1Yqg?si=jwmTryxSJAtwJfX_",
+  },
+  {
+    url: "https://youtu.be/biuQBsctFfE?si=qYUOifyUitq2Bvkg",
+  },
+  {
+    url: "https://youtu.be/wjDZFUAsGw4?si=zzHNAQnB51IYKteS",
+  },
+];
+
+const getVideoId = (url) => {
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/
+  );
+  return match ? match[1] : "";
+};
+
+function FeaturedPodcasts() {
+  const sliderData = [...podcasts, ...podcasts];
+
+  return (
+    <>
+      <style>
+        {`
+          @keyframes scrollPodcasts {
+            from {
+              transform: translateX(0);
+            }
+            to {
+              transform: translateX(-50%);
+            }
+          }
+        `}
+      </style>
+
+      <div
+        style={{
+          overflow: "hidden",
+          width: "100%",
+          padding: "40px 0",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: "24px",
+            width: "max-content",
+            animation: "scrollPodcasts 40s linear infinite",
+          }}
+        >
+          {sliderData.map((podcast, index) => (
+            <div
+              key={index}
+              style={{
+                width: "450px",
+                flexShrink: 0,
+                borderRadius: "24px",
+                overflow: "hidden",
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.05)",
+              }}
+            >
+              <iframe
+                width="100%"
+                height="250"
+                src={`https://www.youtube.com/embed/${getVideoId(
+                  podcast.url
+                )}`}
+                title={podcast.title}
+                allowFullScreen
+              />
+            </div>
+          ))}
+        </div>
+ <div
+    style={{
+      textAlign: "center",
+      marginTop: "50px",
+    }}
+  >
+    <h2
+      style={{
+        fontSize: "48px",
+        fontWeight: "700",
+        margin: 0,
+      }}
+    >
+      Featured Podcasts
+    </h2>
+
+    <p
+      style={{
+        fontSize: "18px",
+        opacity: 0.75,
+        marginTop: "12px",
+      }}
+    >
+      Insights on Mental Health, Parenting & Personal Growth
+    </p>
+  </div>
+      </div>
+    </>
+  );
+}
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -78,7 +193,11 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* How It Works */}
+<section>
+<FeaturedPodcasts/>
+</section>
+
+    {/* How It Works */}
       <section className="py-24 bg-mc-bg" data-testid="how-it-works-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -105,6 +224,8 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
+      <ServicesPricingSection />
 
       {/* Featured Doctors */}
       {featuredDoctors.length > 0 && (
@@ -238,7 +359,17 @@ const LandingPage = () => {
                 <a href="mailto:guptah.hg888@gmail.com" className="hover:text-white transition-colors">guptah.hg888@gmail.com</a>
               </p>
             </div>
-            <p className="text-white/50 text-sm font-body">© 2025 Dr. MadhumatiSingh. All rights reserved.</p>
+            <div className="flex flex-col items-center md:items-end gap-3">
+              <div className="flex flex-wrap justify-center md:justify-end gap-x-4 gap-y-1 text-sm font-body">
+                <Link to="/about" className="text-white/60 hover:text-white transition-colors" data-testid="footer-about">About Us</Link>
+                {POLICY_LINKS.map((link) => (
+                  <Link key={link.path} to={link.path} className="text-white/60 hover:text-white transition-colors" data-testid={`footer-${link.path.split('/').pop()}`}>
+                    {link.label.replace(' Policy', '').replace('Terms & Conditions', 'Terms')}
+                  </Link>
+                ))}
+              </div>
+              <p className="text-white/50 text-sm font-body">© 2025 Dr. MadhumatiSingh. All rights reserved.</p>
+            </div>
           </div>
         </div>
       </footer>
@@ -247,3 +378,4 @@ const LandingPage = () => {
 };
 
 export default LandingPage;
+

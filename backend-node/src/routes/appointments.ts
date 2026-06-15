@@ -48,6 +48,16 @@ router.post('/', requireAuth, validate(AppointmentCreateSchema), async (req: Req
   }
   if (!doctor) { res.status(404).json({ detail: 'Doctor not found' }); return; }
 
+const blockedDate = await db.doctor_slots().findOne({
+    doctor_id: body.doctor_id,
+    date: body.appointment_date,
+    is_blocked: true,
+  });
+  if (blockedDate) {
+    res.status(400).json({ detail: 'Bookings are disabled for this date' });
+    return;
+  }
+
   const existing = await db.appointments().findOne({
     doctor_id: body.doctor_id,
     appointment_date: body.appointment_date,
@@ -59,7 +69,23 @@ router.post('/', requireAuth, validate(AppointmentCreateSchema), async (req: Req
   // Resolve fee based on chosen duration
   const baseFee = (doctor.consultation_fee as number) ?? 2000;
   let resolvedFee = baseFee;
-  if (body.duration_minutes === 45 && doctor.fee_45min != null) {
+  let serviceId: string | null = body.service_id ?? null;
+  let serviceName: string | null = null;
+  let durationMinutes: number | null = body.duration_minutes ?? null;
+  const services = Array.isArray(doctor.services) ? doctor.services as Record<string, unknown>[] : [];
+  if (services.length > 0) {
+    const selectedService = serviceId
+      ? services.find((service) => service.id === serviceId)
+      : services[0];
+    if (!selectedService) {
+      res.status(400).json({ detail: 'Selected service is not available for this doctor' });
+      return;
+    }
+    serviceId = String(selectedService.id);
+    serviceName = String(selectedService.name);
+    resolvedFee = Number(selectedService.price);
+    durationMinutes = selectedService.duration_minutes == null ? null : Number(selectedService.duration_minutes);
+  } else if (body.duration_minutes === 45 && doctor.fee_45min != null) {
     resolvedFee = doctor.fee_45min as number;
   } else if (body.duration_minutes === 60 && doctor.fee_60min != null) {
     resolvedFee = doctor.fee_60min as number;
@@ -80,7 +106,10 @@ router.post('/', requireAuth, validate(AppointmentCreateSchema), async (req: Req
     patient_phone: (user['phone'] as string) ?? null,
     appointment_date: body.appointment_date,
     appointment_time: body.appointment_time,
-    duration_minutes: body.duration_minutes ?? null,
+    service_id: serviceId,
+    service_name: serviceName,
+    duration_minutes: durationMinutes,
+show_meet_link: false,
     country_code: countryCode,
     status: 'pending_payment',
     payment_status: 'pending',

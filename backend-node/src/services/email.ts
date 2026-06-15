@@ -197,7 +197,9 @@ function createTransporter(): nodemailer.Transporter | null {
 interface BookingEmailParams {
   userEmail: string;
   userName: string;
+  userPhone?: string;
   doctorName: string;
+  serviceName?: string | null;
   appointmentDate: string;
   appointmentTime: string;
   durationMinutes?: number;
@@ -210,7 +212,9 @@ export async function sendBookingConfirmationEmail(params: BookingEmailParams): 
   const {
     userEmail,
     userName,
+    userPhone,
     doctorName,
+    serviceName,
     appointmentDate,
     appointmentTime,
     durationMinutes,
@@ -252,6 +256,18 @@ export async function sendBookingConfirmationEmail(params: BookingEmailParams): 
           <td style="padding: 8px 16px; font-weight: bold; color: #333;">Consultant</td>
           <td style="padding: 8px 16px; color: #555;">${doctorName}</td>
         </tr>
+        ${serviceName ? `<tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Service</td>
+          <td style="padding: 8px 16px; color: #555;">${serviceName}</td>
+        </tr>` : ''}
+        <tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Booked By Email</td>
+          <td style="padding: 8px 16px; color: #555;">${userEmail}</td>
+        </tr>
+        ${userPhone ? `<tr style="border-bottom: 1px solid #e9ecef;">
+          <td style="padding: 8px 16px; font-weight: bold; color: #333;">Booked By Phone</td>
+          <td style="padding: 8px 16px; color: #555;">${userPhone}</td>
+        </tr>` : ''}
         <tr style="border-bottom: 1px solid #e9ecef;">
           <td style="padding: 8px 16px; font-weight: bold; color: #333;">Date</td>
           <td style="padding: 8px 16px; color: #555;">${appointmentDate}</td>
@@ -508,7 +524,9 @@ export async function handlePaymentFailureNotification(params: PaymentFailureNot
 export interface PaymentSuccessNotificationParams {
   userEmail: string;
   userName: string;
+  userPhone?: string;
   doctorName: string;
+  serviceName?: string | null;
   appointmentDate: string;
   appointmentTime: string;
   durationMinutes?: number;
@@ -520,7 +538,9 @@ export async function handlePaymentSuccessNotification(params: PaymentSuccessNot
   const {
     userEmail,
     userName,
+    userPhone,
     doctorName,
+    serviceName,
     appointmentDate,
     appointmentTime,
     durationMinutes,
@@ -540,7 +560,9 @@ export async function handlePaymentSuccessNotification(params: PaymentSuccessNot
   await sendBookingConfirmationEmail({
     userEmail,
     userName,
+    userPhone,
     doctorName,
+    serviceName,
     appointmentDate,
     appointmentTime,
     durationMinutes,
@@ -554,7 +576,8 @@ export async function handlePaymentSuccessNotification(params: PaymentSuccessNot
     const { db } = await import('../core/database');
     await db.appointments().updateOne(
       { transaction_id: transactionId },
-      { $set: { meet_link: meetLink, updated_at: new Date() } }
+      { $set: { meet_link: meetLink, show_meet_link: true, updated_at: new Date() } }
     );
   }
 }
+

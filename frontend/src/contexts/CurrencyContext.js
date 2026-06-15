@@ -5,26 +5,26 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 // rate: exchange rate from INR to local currency (for display)
 export const COUNTRY_CONFIG = {
   IN: { currency: 'INR', symbol: '₹',   rate: 1,       feeMultiplier: 1.0,   flag: '🇮🇳', name: 'India' },
-  US: { currency: 'USD', symbol: '$',   rate: 0.012,   feeMultiplier: 2.5,   flag: '🇺🇸', name: 'USA' },
-  GB: { currency: 'GBP', symbol: '£',   rate: 0.0095,  feeMultiplier: 2.5,   flag: '🇬🇧', name: 'UK' },
-  DE: { currency: 'EUR', symbol: '€',   rate: 0.011,   feeMultiplier: 2.25,  flag: '🇩🇪', name: 'Germany' },
-  FR: { currency: 'EUR', symbol: '€',   rate: 0.011,   feeMultiplier: 2.25,  flag: '🇫🇷', name: 'France' },
-  AE: { currency: 'AED', symbol: 'د.إ', rate: 0.044,   feeMultiplier: 2.0,   flag: '🇦🇪', name: 'UAE' },
-  AU: { currency: 'AUD', symbol: 'A$',  rate: 0.018,   feeMultiplier: 2.25,  flag: '🇦🇺', name: 'Australia' },
-  CA: { currency: 'CAD', symbol: 'C$',  rate: 0.016,   feeMultiplier: 2.25,  flag: '🇨🇦', name: 'Canada' },
-  SG: { currency: 'SGD', symbol: 'S$',  rate: 0.016,   feeMultiplier: 2.25,  flag: '🇸🇬', name: 'Singapore' },
-  NZ: { currency: 'NZD', symbol: 'NZ$', rate: 0.020,   feeMultiplier: 2.0,   flag: '🇳🇿', name: 'New Zealand' },
-  JP: { currency: 'JPY', symbol: '¥',   rate: 1.80,    feeMultiplier: 2.0,   flag: '🇯🇵', name: 'Japan' },
-  KR: { currency: 'KRW', symbol: '₩',   rate: 16.2,    feeMultiplier: 1.75,  flag: '🇰🇷', name: 'South Korea' },
+  US: { currency: 'USD', symbol: '$',   rate: 0.012,   feeMultiplier: 2.0,   flag: '🇺🇸', name: 'USA' },
+  GB: { currency: 'GBP', symbol: '£',   rate: 0.0095,  feeMultiplier: 2.0,   flag: '🇬🇧', name: 'UK' },
+  DE: { currency: 'EUR', symbol: '€',   rate: 0.011,   feeMultiplier: 1.75,  flag: '🇩🇪', name: 'Germany' },
+  FR: { currency: 'EUR', symbol: '€',   rate: 0.011,   feeMultiplier: 1.75,  flag: '🇫🇷', name: 'France' },
+  AE: { currency: 'AED', symbol: 'د.إ', rate: 0.044,   feeMultiplier: 1.5,   flag: '🇦🇪', name: 'UAE' },
+  AU: { currency: 'AUD', symbol: 'A$',  rate: 0.018,   feeMultiplier: 1.75,  flag: '🇦🇺', name: 'Australia' },
+  CA: { currency: 'CAD', symbol: 'C$',  rate: 0.016,   feeMultiplier: 1.75,  flag: '🇨🇦', name: 'Canada' },
+  SG: { currency: 'SGD', symbol: 'S$',  rate: 0.016,   feeMultiplier: 1.75,  flag: '🇸🇬', name: 'Singapore' },
+  NZ: { currency: 'NZD', symbol: 'NZ$', rate: 0.020,   feeMultiplier: 1.5,   flag: '🇳🇿', name: 'New Zealand' },
+  JP: { currency: 'JPY', symbol: '¥',   rate: 1.80,    feeMultiplier: 1.5,   flag: '🇯🇵', name: 'Japan' },
+  KR: { currency: 'KRW', symbol: '₩',   rate: 16.2,    feeMultiplier: 1.25,  flag: '🇰🇷', name: 'South Korea' },
   MY: { currency: 'MYR', symbol: 'RM',  rate: 0.055,   feeMultiplier: 1.25,  flag: '🇲🇾', name: 'Malaysia' },
   PK: { currency: 'PKR', symbol: '₨',   rate: 3.35,    feeMultiplier: 1.25,  flag: '🇵🇰', name: 'Pakistan' },
   BD: { currency: 'BDT', symbol: '৳',   rate: 1.31,    feeMultiplier: 1.25,  flag: '🇧🇩', name: 'Bangladesh' },
   LK: { currency: 'LKR', symbol: 'Rs',  rate: 3.60,    feeMultiplier: 1.25,  flag: '🇱🇰', name: 'Sri Lanka' },
-  SA: { currency: 'SAR', symbol: 'SR',  rate: 0.045,   feeMultiplier: 2.0,   flag: '🇸🇦', name: 'Saudi Arabia' },
-  QA: { currency: 'QAR', symbol: 'QR',  rate: 0.044,   feeMultiplier: 2.0,   flag: '🇶🇦', name: 'Qatar' },
+  SA: { currency: 'SAR', symbol: 'SR',  rate: 0.045,   feeMultiplier: 1.5,   flag: '🇸🇦', name: 'Saudi Arabia' },
+  QA: { currency: 'QAR', symbol: 'QR',  rate: 0.044,   feeMultiplier: 1.5,   flag: '🇶🇦', name: 'Qatar' },
 };
 
-const DEFAULT_CONFIG = { currency: 'USD', symbol: '$', rate: 0.012, feeMultiplier: 2.5, flag: '🌐', name: 'International' };
+const DEFAULT_CONFIG = { currency: 'USD', symbol: '$', rate: 0.012, feeMultiplier: 2.0, flag: '🌐', name: 'International' };
 
 const CurrencyContext = createContext(null);
 

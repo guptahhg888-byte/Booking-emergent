@@ -10,6 +10,7 @@ import doctorsRouter from './routes/doctors';
 import appointmentsRouter from './routes/appointments';
 import paymentsRouter from './routes/payments';
 import adminRouter from './routes/admin';
+import workshopsRouter from './routes/workshops';
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api/doctors', doctorsRouter);
 app.use('/api/appointments', appointmentsRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/workshops', workshopsRouter);
 
 // ─── 404 fallback ─────────────────────────────────────────────────────────────
 

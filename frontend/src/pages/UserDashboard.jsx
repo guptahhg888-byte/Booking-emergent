@@ -24,10 +24,13 @@ const UserDashboard = () => {
   const [filter, setFilter] = useState('all');
   const [cancellingId, setCancellingId] = useState(null);
   const [rescheduleAppt, setRescheduleAppt] = useState(null);
+  const [workshops, setWorkshops] = useState([]);
 
   useEffect(() => {
-    api.get('/appointments')
-      .then(res => setAppointments(res.data))
+    Promise.all([
+      api.get('/appointments').then(res => setAppointments(res.data)),
+      api.get('/workshops/my').then(res => setWorkshops(res.data)).catch(console.error),
+    ])
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -141,6 +144,11 @@ const UserDashboard = () => {
                             {appt.notes}
                           </p>
                         )}
+                        {appt.show_meet_link && appt.meet_link && (
+                          <a href={appt.meet_link} target="_blank" rel="noreferrer" className="inline-flex mt-3 text-xs bg-emerald-600 text-white rounded-full px-3 py-1.5 hover:bg-emerald-700 transition-all font-body">
+                            Join Google Meet
+                          </a>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -195,6 +203,38 @@ const UserDashboard = () => {
             })}
           </div>
         )}
+
+        {!loading && workshops.length > 0 && (
+          <div className="mt-8">
+            <h2 className="font-heading text-xl text-mc-text font-700 mb-4">My Workshops</h2>
+            <div className="space-y-4">
+              {workshops.map(workshop => (
+                <div key={workshop._id} className="bg-mc-surface border border-mc-border rounded-2xl p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-heading text-base text-mc-text font-600">{workshop.title}</h3>
+                      <div className="flex flex-wrap items-center gap-3 mt-1.5 text-sm text-mc-text-secondary font-body">
+                        <span className="flex items-center gap-1"><User size={13} />{workshop.doctor_name}</span>
+                        <span className="flex items-center gap-1"><Calendar size={13} />{workshop.workshop_date}</span>
+                        <span className="flex items-center gap-1"><Clock size={13} />{workshop.start_time}</span>
+                      </div>
+                      {workshop.show_meet_link && workshop.gmeet_link ? (
+                        <a href={workshop.gmeet_link} target="_blank" rel="noreferrer" className="inline-flex mt-3 text-xs bg-emerald-600 text-white rounded-full px-3 py-1.5 hover:bg-emerald-700 transition-all font-body">
+                          Join Google Meet
+                        </a>
+                      ) : (
+                        <p className="text-xs text-mc-text-secondary mt-3 font-body">Meet link unlocks after payment is completed.</p>
+                      )}
+                    </div>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full font-body ${paymentConfig[workshop.payment_status]?.color || 'bg-mc-bg text-mc-text-secondary'}`}>
+                      {paymentConfig[workshop.payment_status]?.label || workshop.payment_status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {rescheduleAppt && (
@@ -212,3 +252,4 @@ const UserDashboard = () => {
 };
 
 export default UserDashboard;
+
