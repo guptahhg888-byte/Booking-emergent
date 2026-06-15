@@ -285,16 +285,24 @@ const BookingPage = () => {
                       className="w-full appearance-none px-4 py-3 border border-mc-border rounded-xl text-mc-text text-sm font-body bg-mc-bg focus:outline-none focus:border-mc-secondary focus:ring-2 focus:ring-mc-secondary/20 transition-all pr-10"
                       data-testid="duration-select"
                     >
-                      {durationOptions.map(opt => (
-                        <option key={opt.label} value={opt.label}>
-                          {opt.label} — ₹{opt.fee?.toLocaleString()}
-                        </option>
-                      ))}
+                      {durationOptions.map(opt => {
+                        const fee = convertFee(opt.fee);
+                        return (
+                          <option key={opt.label} value={opt.label}>
+                            {opt.label} — {fee.display}{fee.isInternational ? ` (${fee.displayINR})` : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                     <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-mc-text-secondary pointer-events-none" />
                   </div>
                   <p className="text-xs text-mc-text-secondary mt-1.5 font-body">
-                    Fee for selected session: <span className="font-semibold text-mc-primary">₹{selectedDuration?.fee?.toLocaleString()}</span>
+                    Fee for selected session: <span className="font-semibold text-mc-primary">
+                      {(() => {
+                        const fee = convertFee(selectedDuration?.fee);
+                        return `${fee.display}${fee.isInternational ? ` (${fee.displayINR})` : ''}`;
+                      })()}
+                    </span>
                   </p>
                 </div>
               )}
