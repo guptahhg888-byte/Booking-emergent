@@ -12,25 +12,25 @@ import { logActivity } from '../services/activity';
 // Country-based fee multipliers (must stay in sync with frontend COUNTRY_CONFIG)
 const COUNTRY_FEE_MULTIPLIER: Record<string, number> = {
   IN: 1.0,
-  US: 2.5,
-  GB: 2.5,
-  DE: 2.25,
-  FR: 2.25,
-  AE: 2.0,
-  AU: 2.25,
-  CA: 2.25,
-  SG: 2.25,
-  NZ: 2.0,
-  JP: 2.0,
-  KR: 1.75,
+  US: 2.0,
+  GB: 2.0,
+  DE: 1.75,
+  FR: 1.75,
+  AE: 1.5,
+  AU: 1.75,
+  CA: 1.75,
+  SG: 1.75,
+  NZ: 1.5,
+  JP: 1.5,
+  KR: 1.25,
   MY: 1.25,
   PK: 1.25,
   BD: 1.25,
   LK: 1.25,
-  SA: 2.0,
-  QA: 2.0,
+  SA: 1.5,
+  QA: 1.5,
 };
-const DEFAULT_INTL_MULTIPLIER = 2.5;
+const DEFAULT_INTL_MULTIPLIER = 2.0;
 
 const router = Router();
 
